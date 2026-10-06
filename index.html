@@ -1,0 +1,1966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WEB-DOS [Version 1.08]</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        html, body { height: 100%; margin: 0; background: #000; }
+        #t { height: 100%; overflow-y: auto; padding: 10px 14px; box-sizing: border-box; color: #aaa; font: 16px/1.3 "Perfect DOS VGA 437", "Consolas", "D2Coding", monospace; white-space: pre-wrap; word-break: break-all; }
+        #t.drag { outline: 3px dashed #5f5; outline-offset: -6px; }
+        #row { display: flex; }
+        #in { flex: 1; background: none; border: 0; outline: 0; color: #fff; font: inherit; caret-color: #fff; padding: 0; }
+        .err { color: #f66; }
+        .ok { color: #5f5; }
+        .hi { color: #fff; }
+        .cyan { color: #5ff; }
+        .yellow { color: #ff5; }
+        #game { display: none; position: fixed; inset: 0; background: #000; z-index: 9; }
+        #dos { position: absolute; inset: 0; }
+        #x { position: absolute; top: 8px; right: 8px; z-index: 10; background: #a00; color: #fff; border: 0; padding: 6px 12px; font: 14px monospace; cursor: pointer; opacity: .85; }
+        /* Editor Overlay Styles */
+        #editor { display: none; position: fixed; inset: 20px; background: #000; border: 2px solid #5f5; z-index: 8; padding: 10px; flex-direction: column; box-sizing: border-box; }
+        #editor-header { color: #5f5; font: bold 16px monospace; margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        #editor-textarea { flex: 1; background: #111; color: #fff; border: 1px solid #333; font: 15px monospace; padding: 8px; resize: none; outline: none; }
+        #editor-footer { color: #777; font-size: 13px; margin-top: 5px; display: flex; justify-content: space-between; }
+    </style>
+</head>
+<body>
+    <div id="t">
+        <div id="o"></div>
+        <div id="row"><span id="pr"></span><input id="in" autocomplete="off" spellcheck="false" autofocus></div>
+    </div>
+    
+    <div id="editor">
+        <div id="editor-header">WEB-DOS EDITOR</div>
+        <textarea id="editor-textarea" spellcheck="false"></textarea>
+        <div id="editor-footer">
+            <span id="editor-hint">[Ctrl+S] Save & Exit | [ESC] Cancel</span>
+            <span id="editor-filename"></span>
+        </div>
+    </div>
+
+    <div id="game">
+        <button id="x">■ EXIT (END)</button>
+        <div id="dos"></div>
+    </div>
+    <input type="file" id="fz" multiple accept=".zip,.jsdos,*" hidden>
+    <input type="file" id="fd" webkitdirectory directory multiple hidden>
+    
+    <script>
+        (function() {
+            const i18n = {
+                en: {
+                    helpHeader: "For more information on a specific command, type HELP command-name.",
+                    docClaude: "(Claude Preview)",
+                    workerLoad: "Worker: ",
+                    jszipLoad: "JSZip: ",
+                    dosLoad: "js-dos loaded OK (",
+                    verInfo: "WEB-DOS [Version 1.08]\n(c) RiceJamJam Studio. All rights reserved.",
+                    fmtDone: "All files have been formatted and deleted.",
+                    reqParam: "Required parameter missing",
+                    invDir: "Invalid directory",
+                    fileNotFound: "File not found",
+                    dirOf: "Directory of C:\\",
+                    filesBytes: " file(s) ",
+                    bytesStr: " bytes",
+                    dirsStr: " dir(s)",
+                    freeSpace: " bytes free",
+                    uploadPrompt: "File picker will open... (Close window to cancel)",
+                    runUsage: "Usage: RUN filename.exe",
+                    jsUsage: "Usage: JAVASCRIPT filename.js (or JS filename.js)",
+                    multiFileMatch: "Multiple files match this name. Please include the path:",
+                    fileNotFoundErr: "file not found. Type TREE to see uploaded files.",
+                    invFormat: "Invalid file format to execute.",
+                    runningTo: "→ ",
+                    timeout: " timed out",
+                    loadFail: " load failed",
+                    dosNotFound: "Dos not found",
+                    claudeWarning: "※ In sandbox Preview, the Worker might be restricted. Download and open in local PC browser if needed.",
+                    dosPreparing: "Preparing js-dos...",
+                    checkInternet: "→ Check internet connection, adblocker, or open in a local PC browser (file:///) ",
+                    filesLoaded: " files loaded",
+                    gameClosed: "Game session ended.",
+                    zipUnpack: " unpacked",
+                    zipFail: "Failed to unpack",
+                    uploadComplete: " file(s) uploaded successfully.",
+                    notCommand: " is not recognized as an internal or external command. Type HELP.",
+                    intro1: "WEB-DOS [Version 1.08]",
+                    intro2: "(c) RiceJamJam Studio. All rights reserved.",
+                    langChanged: "Language changed to English.",
+                    invalidLang: "Invalid language. Available: english (en), korean (kr/ko), japanese (jp/ja), chinese (cn/zh)",
+                    editorSaved: "File saved: ",
+                    editUsage: "Usage: EDIT filename.txt",
+                    jsRunning: "Executing JavaScript file: ",
+                    jsSuccess: "JavaScript execution finished.",
+                    jsError: "JavaScript Runtime Error: ",
+                    rootStripped: "[INFO] Top-level folder wrapper removed. Files unpacked directly into current directory.",
+                    subfolderHeader: "--- SUBFOLDER FILES (SUB-DIRECTORY CONTENTS) ---",
+                    uploadedHeader: "--- UPLOADED FILE LIST ---",
+                    editorTitle: "WEB-DOS EDITOR",
+                    editorHint: "[Ctrl+S] Save & Exit | [ESC] Cancel",
+                    exitBtn: "■ EXIT (END)",
+                    sysInfoOS: "OS Version:                1.08.437 Build 2026",
+                    sysInfoHost: "Host Name:                 WEB-DOS-PC",
+                    sysInfoType: "System Type:               x86/x64 Web Browser Environment",
+                    sysInfoMem: "Total Physical Memory:     640 KB Base / 32 MB Extended",
+                    memBase: "640K conventional memory free: 590 KB",
+                    memXMS: "Extended memory (XMS): 32,768 KB",
+                    memFiles: "Total virtual files stored: ",
+                    chkdskType: "The type of the file system is FAT32.",
+                    chkdskSerial: "Volume Serial Number is 437A-9F01",
+                    chkdskTotal: "32,768,000 bytes total disk space.",
+                    chkdskAvail: "32,000,000 bytes available on disk.",
+                    beepMsg: "BEEP!",
+                    colorGreen: "Color set to Terminal Green",
+                    colorCyan: "Color set to Neon Cyan",
+                    colorYellow: "Color set to Amber Gold",
+                    colorReset: "Color reset to default grey",
+                    noHelpFor: "No help topic available for command ",
+                    fileDeleted: "File deleted successfully.",
+                    fileRenamed: "File renamed.",
+                    dirRemoved: "Directory removed.",
+                    fileCopied: "        1 file(s) copied."
+                },
+                kr: {
+                    helpHeader: "특정 명령어에 대한 자세한 내용이 필요하면 HELP 명령어 이름을 입력하십시오.",
+                    docClaude: "(클로드 미리보기)",
+                    workerLoad: "Worker: ",
+                    jszipLoad: "JSZip: ",
+                    dosLoad: "js-dos 로드 OK (",
+                    verInfo: "WEB-DOS [Version 1.08]\n(c) RiceJamJam Studio. All rights reserved.",
+                    fmtDone: "모든 파일이 삭제되었습니다.",
+                    reqParam: "필수 인자가 누락되었습니다",
+                    invDir: "유효하지 않은 폴더입니다",
+                    fileNotFound: "파일을 찾을 수 없습니다",
+                    dirOf: "C:\\ 디렉토리 및 파일 목록:",
+                    filesBytes: "개 파일 ",
+                    bytesStr: " 바이트",
+                    dirsStr: "개 폴더",
+                    freeSpace: " 바이트 여유",
+                    uploadPrompt: "파일 선택창이 열립니다… (취소하려면 창을 닫으세요)",
+                    runUsage: "사용법: RUN 파일이름.exe",
+                    jsUsage: "사용법: JAVASCRIPT 파일이름.js (또는 JS 파일이름.js)",
+                    multiFileMatch: "같은 이름의 파일이 여러 개입니다. 경로를 포함해서 입력하세요:",
+                    fileNotFoundErr: "파일을 찾을 수 없습니다. TREE 로 업로드된 파일을 확인하세요.",
+                    invFormat: "실행할 수 없는 파일 형식입니다.",
+                    runningTo: "→ ",
+                    timeout: " 시간 초과",
+                    loadFail: " 로드 실패",
+                    dosNotFound: "Dos 를 찾을 수 없음",
+                    claudeWarning: "※ 미리보기 환경에서는 Worker 가 차단되어 실행되지 않을 수 있습니다. 다운로드 후 PC 브라우저로 여세요.",
+                    dosPreparing: "js-dos 준비 중…",
+                    checkInternet: "→ 인터넷/광고차단/회사망을 확인하고, PC 브라우저에서 여세요. DOCTOR 로 진단할 수 있습니다.",
+                    filesLoaded: "개 파일 로드",
+                    gameClosed: "게임이 종료되었습니다.",
+                    zipUnpack: " 압축 해제",
+                    zipFail: "압축 해제 실패",
+                    uploadComplete: "개 파일 업로드 완료.",
+                    notCommand: "은(는) 내부/외부 명령이 아닙니다. HELP 를 입력하세요.",
+                    intro1: "WEB-DOS [Version 1.08]",
+                    intro2: "(c) RiceJamJam Studio. All rights reserved.",
+                    langChanged: "언어가 한국어로 변경되었습니다.",
+                    invalidLang: "지원하지 않는 언어입니다. 사용 가능: english(en), korean(kr/ko), japanese(jp/ja), chinese(cn/zh)",
+                    editorSaved: "파일 저장됨: ",
+                    editUsage: "사용법: EDIT 파일이름.txt",
+                    jsRunning: "자바스크립트 파일 실행 중: ",
+                    jsSuccess: "자바스크립트 실행이 완료되었습니다.",
+                    jsError: "자바스크립트 런타임 오류: ",
+                    rootStripped: "[안내] 최상위 폴더 감싸기가 감지되어 내부 파일들이 최상위 경로로 자동 배치되었습니다.",
+                    subfolderHeader: "--- 하위 폴더 파일 목록 ---",
+                    uploadedHeader: "--- 업로드된 파일 목록 ---",
+                    editorTitle: "WEB-DOS 에디터",
+                    editorHint: "[Ctrl+S] 저장 및 종료 | [ESC] 취소",
+                    exitBtn: "■ 종료 (END)",
+                    sysInfoOS: "OS 버전:                   1.08.437 Build 2026",
+                    sysInfoHost: "호스트 이름:               WEB-DOS-PC",
+                    sysInfoType: "시스템 종류:               x86/x64 웹 브라우저 가상 환경",
+                    sysInfoMem: "총 물리 메모리:           640 KB 기본 / 32 MB 확장",
+                    memBase: "640K 기본 메모리 여유: 590 KB",
+                    memXMS: "확장 메모리 (XMS): 32,768 KB",
+                    memFiles: "저장된 총 가상 파일 수: ",
+                    chkdskType: "파일 시스템 유형은 FAT32 입니다.",
+                    chkdskSerial: "볼륨 일련 번호: 437A-9F01",
+                    chkdskTotal: "총 디스크 공간 32,768,000 바이트.",
+                    chkdskAvail: "디스크 사용 가능 공간 32,000,000 바이트.",
+                    beepMsg: "삐~ (BEEP!)",
+                    colorGreen: "색상이 터미널 그린으로 변경되었습니다",
+                    colorCyan: "색상이 네온 사이언으로 변경되었습니다",
+                    colorYellow: "색상이 엠버 골드로 변경되었습니다",
+                    colorReset: "색상이 기본 회색으로 초기화되었습니다",
+                    noHelpFor: "다음 명령어에 대한 도움말 정보가 없습니다: ",
+                    fileDeleted: "파일이 성공적으로 삭제되었습니다.",
+                    fileRenamed: "파일 이름이 변경되었습니다.",
+                    dirRemoved: "디렉토리가 삭제되었습니다.",
+                    fileCopied: "        1개 파일이 복사되었습니다."
+                },
+                jp: {
+                    helpHeader: "特定のコマンドに関する詳細情報が必要な場合は、HELP コマンド名 を入力してください。",
+                    docClaude: "(プレビュー)",
+                    workerLoad: "Worker: ",
+                    jszipLoad: "JSZip: ",
+                    dosLoad: "js-dos読み込みOK (",
+                    verInfo: "WEB-DOS [Version 1.08]\n(c) RiceJamJam Studio. All rights reserved.",
+                    fmtDone: "すべてのファイルが削除されました。",
+                    reqParam: "必須パラメータがありません",
+                    invDir: "無効なディレクトリです",
+                    fileNotFound: "ファイルが見つかりません",
+                    dirOf: "C:\\ のディレクトリおよびファイル一覧:",
+                    filesBytes: " 個のファイル ",
+                    bytesStr: " バイト",
+                    dirsStr: " 個のディレクトリ",
+                    freeSpace: " バイトの空き",
+                    uploadPrompt: "ファイル選択ダイアログが開きます…",
+                    runUsage: "使用方法: RUN ファイル名.exe",
+                    jsUsage: "使用方法: JAVASCRIPT ファイル名.js (または JS ファイル名.js)",
+                    multiFileMatch: "同名のファイルが複数あります。パスを含めて入力してください:",
+                    fileNotFoundErr: "ファイルが見つかりません。TREEで確認してください。",
+                    invFormat: "実行できないファイル形式です。",
+                    runningTo: "→ ",
+                    timeout: " タイムアウト",
+                    loadFail: " 読み込み失敗",
+                    dosNotFound: "Dosが見つかりません",
+                    claudeWarning: "※ プレビュー環境ではWorkerがブロックされる可能性があります。",
+                    dosPreparing: "js-dosを準備中…",
+                    checkInternet: "→ ネットワーク設定を確認するか、PCブラウザで開いてください。",
+                    filesLoaded: "個のファイルをロード",
+                    gameClosed: "ゲームが終了しました。",
+                    zipUnpack: " 解凍完了",
+                    zipFail: "解凍に失敗しました",
+                    uploadComplete: "個のファイルのアップロードが完了しました。",
+                    notCommand: " は内部コマンドまたは外部コマンドとして認識されていません。",
+                    intro1: "WEB-DOS [Version 1.08]",
+                    intro2: "(c) RiceJamJam Studio. All rights reserved.",
+                    langChanged: "言語を日本語に変更しました。",
+                    invalidLang: "無効な言語です。設定可能: english(en), korean(kr/ko), japanese(jp/ja), chinese(cn/zh)",
+                    editorSaved: "ファイルを保存しました: ",
+                    editUsage: "使用方法: EDIT ファイル名.txt",
+                    jsRunning: "JavaScriptファイルを実行中: ",
+                    jsSuccess: "JavaScriptの実行が完了しました。",
+                    jsError: "JavaScript実行エラー: ",
+                    rootStripped: "[情報] 最上位フォルダの階層を自動解除し、ファイルを直接展開しました。",
+                    subfolderHeader: "--- サブフォルダファイル一覧 ---",
+                    uploadedHeader: "--- アップロード済みファイル一覧 ---",
+                    editorTitle: "WEB-DOS エディタ",
+                    editorHint: "[Ctrl+S] 保存して終了 | [ESC] キャンセル",
+                    exitBtn: "■ 終了 (END)",
+                    sysInfoOS: "OSバージョン:               1.08.437 Build 2026",
+                    sysInfoHost: "ホスト名:                   WEB-DOS-PC",
+                    sysInfoType: "システムの種類:             x86/x64 ブラウザ仮想環境",
+                    sysInfoMem: "全物理メモリ:               640 KB 基本 / 32 MB 拡張",
+                    memBase: "640K 基本メモリ空き容量: 590 KB",
+                    memXMS: "拡張メモリ (XMS): 32,768 KB",
+                    memFiles: "保存済み仮想ファイル総数: ",
+                    chkdskType: "ファイルシステムのタイプは FAT32 です。",
+                    chkdskSerial: "ボリュームシリアル番号: 437A-9F01",
+                    chkdskTotal: "全ディスク容量 32,768,000 バイト。",
+                    chkdskAvail: "利用可能ディスク容量 32,000,000 バイト。",
+                    beepMsg: "ビープ音 (BEEP!)",
+                    colorGreen: "カラーをターミナルグリーンに設定しました",
+                    colorCyan: "カラーをネオンシアンに設定しました",
+                    colorYellow: "カラーをアンバーゴールドに設定しました",
+                    colorReset: "カラーをデフォルトグレーにリセットしました",
+                    noHelpFor: "ヘルプが見つかりません: ",
+                    fileDeleted: "ファイルは正常に削除されました。",
+                    fileRenamed: "ファイル名を変更しました。",
+                    dirRemoved: "ディレクトリを削除しました。",
+                    fileCopied: "        1 個のファイルをコピーしました。"
+                },
+                cn: {
+                    helpHeader: "有关某个命令的详细信息，请键入 HELP 命令名。",
+                    docClaude: "(预览)",
+                    workerLoad: "Worker: ",
+                    jszipLoad: "JSZip: ",
+                    dosLoad: "js-dos 加载成功 (",
+                    verInfo: "WEB-DOS [Version 1.08]\n(c) RiceJamJam Studio. All rights reserved.",
+                    fmtDone: "所有文件已被删除。",
+                    reqParam: "缺少必要参数",
+                    invDir: "无效的目录",
+                    fileNotFound: "未找到文件",
+                    dirOf: "C:\\ 的目录和文件列表:",
+                    filesBytes: " 个文件 ",
+                    bytesStr: " 字节",
+                    dirsStr: " 个目录",
+                    freeSpace: " 字节可用",
+                    uploadPrompt: "文件选择窗口将打开…",
+                    runUsage: "用法: RUN 文件名.exe",
+                    jsUsage: "用法: JAVASCRIPT 文件名.js (或 JS 文件名.js)",
+                    multiFileMatch: "找到多个同名文件，请包含完整路径:",
+                    fileNotFoundErr: "未找到文件。请使用 TREE 查看已上传的文件。",
+                    invFormat: "无法执行此文件格式。",
+                    runningTo: "→ ",
+                    timeout: " 超时",
+                    loadFail: " 加载失败",
+                    dosNotFound: "未找到 Dos",
+                    claudeWarning: "※ 在当前预览中，Worker 可能会被阻止。",
+                    dosPreparing: "正在准备 js-dos…",
+                    checkInternet: "→ 请检查网络或在本地 PC 浏览器中打开。",
+                    filesLoaded: " 个文件已加载",
+                    gameClosed: "游戏会话已结束。",
+                    zipUnpack: " 解压",
+                    zipFail: "解压失败",
+                    uploadComplete: " 个文件上传完成。",
+                    notCommand: " 不是内部或外部命令，也不是可运行的程序。请输入 HELP。",
+                    intro1: "WEB-DOS [Version 1.08]",
+                    intro2: "(c) RiceJamJam Studio. All rights reserved.",
+                    langChanged: "语言已切换为中文。",
+                    invalidLang: "无效的语言。可用语言: english (en), korean (kr/ko), japanese (jp/ja), chinese (cn/zh)",
+                    editorSaved: "文件已保存: ",
+                    editUsage: "用法: EDIT 文件名.txt",
+                    jsRunning: "正在执行 JavaScript 文件: ",
+                    jsSuccess: "JavaScript 执行完成。",
+                    jsError: "JavaScript 运行时错误: ",
+                    rootStripped: "[提示] 已自动移除最外层文件夹，文件已直接解压至当前目录。",
+                    subfolderHeader: "--- 子文件夹文件列表 ---",
+                    uploadedHeader: "--- 已上传文件列表 ---",
+                    editorTitle: "WEB-DOS 编辑器",
+                    editorHint: "[Ctrl+S] 保存并退出 | [ESC] 取消",
+                    exitBtn: "■ 退出 (END)",
+                    sysInfoOS: "OS 版本:                    1.08.437 Build 2026",
+                    sysInfoHost: "主机名:                    WEB-DOS-PC",
+                    sysInfoType: "系统类型:                  x86/x64 浏览器虚拟环境",
+                    sysInfoMem: "物理内存总量:              640 KB 基本 / 32 MB 扩展",
+                    memBase: "640K 基本内存可用: 590 KB",
+                    memXMS: "扩展内存 (XMS): 32,768 KB",
+                    memFiles: "存储的虚拟文件总数: ",
+                    chkdskType: "文件系统类型是 FAT32。",
+                    chkdskSerial: "卷序列号是 437A-9F01",
+                    chkdskTotal: "32,768,000 字节总磁盘空间。",
+                    chkdskAvail: "32,000,000 字节可用磁盘空间。",
+                    beepMsg: "蜂鸣! (BEEP!)",
+                    colorGreen: "颜色已设置为终端绿",
+                    colorCyan: "颜色已设置为霓虹青",
+                    colorYellow: "颜色已设置为琥珀金",
+                    colorReset: "颜色已重置为默认灰",
+                    noHelpFor: "未找到相关帮助主题: ",
+                    fileDeleted: "文件已成功删除。",
+                    fileRenamed: "文件名已重命名。",
+                    dirRemoved: "目录已成功删除。",
+                    fileCopied: "        已复制 1 个文件。"
+                }
+            };
+
+            const helpDocs = {
+                en: {
+                    ASSOC: "ASSOC - Displays file extension associations.",
+                    ATTRIB: "ATTRIB - Displays or changes file attributes.",
+                    BEEP: "BEEP - Plays retro PC speaker sound effect.",
+                    BREAK: "BREAK - Sets extended CTRL+C checking.",
+                    BCDEDIT: "BCDEDIT - Boot Data Store settings.",
+                    CACLS: "CACLS - Displays or modifies file ACLs.",
+                    CALL: "CALL - Calls one batch program from another.",
+                    CD: "CD - Displays current directory or changes directory.",
+                    CHCP: "CHCP - Displays or sets active code page.",
+                    CHDIR: "CHDIR - Displays current directory or changes directory.",
+                    CHKDSK: "CHKDSK - Checks disk status report.",
+                    CHKNTFS: "CHKNTFS - Displays disk check on boot.",
+                    CLS: "CLS - Clears terminal screen.",
+                    CMD: "CMD - Starts a new command shell.",
+                    COLOR: "COLOR [0A|0B|0E] - Changes terminal text color.",
+                    COMP: "COMP - Compares contents of two files.",
+                    COMPACT: "COMPACT - Displays or alters file compression.",
+                    CONFIG: "CONFIG [en|kr|jp|cn] - Changes system language setting.",
+                    CONVERT: "CONVERT - Converts FAT volumes to NTFS.",
+                    COPY: "COPY source dest - Copies files.",
+                    DATE: "DATE - Displays system date.",
+                    DEL: "DEL filename - Deletes one or more files.",
+                    DIR: "DIR - Displays directory files and subfolders.",
+                    DISKPART: "DISKPART - Configures disk partition properties.",
+                    DOCTOR: "DOCTOR - Runs diagnostic check on js-dos.",
+                    DOSKEY: "DOSKEY - Command history and macro manager.",
+                    DRIVERQUERY: "DRIVERQUERY - Displays device driver status.",
+                    ECHO: "ECHO [text] - Displays messages.",
+                    EDIT: "EDIT filename.txt - Opens retro text editor.",
+                    ENDLOCAL: "ENDLOCAL - Ends localization in batch file.",
+                    ERASE: "ERASE - Deletes files.",
+                    EXIT: "EXIT - Quits command session or game.",
+                    FC: "FC - Compares two files.",
+                    FIND: "FIND \"string\" filename - Searches string in file.",
+                    FINDSTR: "FINDSTR - Searches strings in files.",
+                    FOR: "FOR - Runs specified command for set of files.",
+                    FORMAT: "FORMAT - Formats virtual disk.",
+                    FSUTIL: "FSUTIL - File system management utility.",
+                    FTYPE: "FTYPE - Displays or modifies file types.",
+                    GOTO: "GOTO - Directs batch file execution.",
+                    GPRESULT: "GPRESULT - Displays Group Policy info.",
+                    HELP: "HELP [command] - Provides Help info.",
+                    ICACLS: "ICACLS - Manages file permissions.",
+                    IF: "IF - Performs conditional processing.",
+                    JAVASCRIPT: "JAVASCRIPT filename.js (JS) - Runs JS file.",
+                    LABEL: "LABEL - Creates or edits disk volume label.",
+                    MD: "MD path - Creates directory.",
+                    MEM: "MEM - Displays memory and virtual file status.",
+                    MKDIR: "MKDIR path - Creates directory.",
+                    MKLINK: "MKLINK - Creates symbolic links.",
+                    MODE: "MODE - Configures system devices.",
+                    MORE: "MORE - Displays output page by page.",
+                    MOVE: "MOVE source dest - Moves files.",
+                    OPENFILES: "OPENFILES - Displays opened shared files.",
+                    PATH: "PATH - Sets executable search path.",
+                    PAUSE: "PAUSE - Pauses batch processing.",
+                    POPD: "POPD - Restores directory from stack.",
+                    PRINT: "PRINT - Prints text file.",
+                    PROMPT: "PROMPT - Changes command prompt format.",
+                    PUSHD: "PUSHD - Stores directory and changes path.",
+                    RD: "RD path - Removes directory.",
+                    RECOVER: "RECOVER - Recovers readable data.",
+                    REM: "REM - Records comment in batch file.",
+                    REN: "REN old new - Renames file.",
+                    RENAME: "RENAME old new - Renames file.",
+                    REPLACE: "REPLACE - Replaces files.",
+                    RMDIR: "RMDIR path - Removes directory.",
+                    ROBOCOPY: "ROBOCOPY - Robust file copying tool.",
+                    RUN: "RUN filename.exe - Executes DOS application.",
+                    SET: "SET [var=val] - Manages environment variables.",
+                    SETLOCAL: "SETLOCAL - Begins environment localization.",
+                    SC: "SC - Service Controller utility.",
+                    SCHTASKS: "SCHTASKS - Schedules tasks.",
+                    SHIFT: "SHIFT - Shifts replaceable batch parameters.",
+                    SHUTDOWN: "SHUTDOWN - System shutdown.",
+                    SORT: "SORT - Sorts input data.",
+                    START: "START - Runs program in window.",
+                    SUBST: "SUBST - Associates path with drive letter.",
+                    SYSTEMINFO: "SYSTEMINFO - Displays machine specifications.",
+                    TASKLIST: "TASKLIST - Displays running processes.",
+                    TASKKILL: "TASKKILL - Kills process.",
+                    TIME: "TIME - Displays system time.",
+                    TITLE: "TITLE - Sets window title.",
+                    TREE: "TREE - Graphically displays directory structure.",
+                    TYPE: "TYPE filename - Displays text file contents.",
+                    LOAD: "LOAD A-Z [-v] - Loads files from a GitHub folder (a-z except c).",
+                    UPLOAD: "UPLOAD [-f] - Uploads files or directory zip.",
+                    VER: "VER - Displays DOS version.",
+                    VERIFY: "VERIFY - Verifies file writing.",
+                    VOL: "VOL - Displays volume label.",
+                    XCOPY: "XCOPY - Extended file copy.",
+                    WMIC: "WMIC - Windows Management Console."
+                },
+                kr: {
+                    ASSOC: "ASSOC - 파일 확장명 연결을 표시합니다.",
+                    ATTRIB: "ATTRIB - 파일 속성을 표시하거나 변경합니다.",
+                    BEEP: "BEEP - 레트로 PC 스피커 비프음을 재생합니다.",
+                    BREAK: "BREAK - 확장된 CTRL+C 검사를 설정합니다.",
+                    BCDEDIT: "BCDEDIT - 부팅 데이터베이스 속성을 설정합니다.",
+                    CACLS: "CACLS - 파일의 액세스 제어 목록(ACL)을 수정합니다.",
+                    CALL: "CALL - 배치 프로그램에서 다른 배치 프로그램을 호출합니다.",
+                    CD: "CD - 현재 디렉토리 이름을 표시하거나 변경합니다.",
+                    CHCP: "CHCP - 활성 코드 페이지 번호를 표시하거나 설정합니다.",
+                    CHDIR: "CHDIR - 디렉토리를 변경합니다.",
+                    CHKDSK: "CHKDSK - 디스크 상태 보고서를 출력합니다.",
+                    CHKNTFS: "CHKNTFS - 부팅 시 디스크 검사 여부를 확인합니다.",
+                    CLS: "CLS - 터미널 화면을 지웁니다.",
+                    CMD: "CMD - DOS 명령 프롬프트의 새 인스턴스를 시작합니다.",
+                    COLOR: "COLOR [0A|0B|0E] - 터미널 텍스트 색상을 변경합니다.",
+                    COMP: "COMP - 두 파일의 내용을 비교합니다.",
+                    COMPACT: "COMPACT - 파일 압축 상태를 표시하거나 변경합니다.",
+                    CONFIG: "CONFIG [en|kr|jp|cn] - 시스템 언어 설정을 변경합니다.",
+                    CONVERT: "CONVERT - FAT 볼륨을 NTFS로 변환합니다.",
+                    COPY: "COPY 원본 대상 - 하나 이상의 파일을 복사합니다.",
+                    DATE: "DATE - 시스템 날짜를 표시합니다.",
+                    DEL: "DEL 파일명 - 하나 이상의 파일을 삭제합니다.",
+                    DIR: "DIR - 디렉토리의 파일과 하위 폴더 목록을 표시합니다.",
+                    DISKPART: "DISKPART - 디스크 파티션 속성을 구성합니다.",
+                    DOCTOR: "DOCTOR - js-dos 에뮬레이터 환경 진단을 실행합니다.",
+                    DOSKEY: "DOSKEY - 명령줄 편집 및 매크로 기능을 제공합니다.",
+                    DRIVERQUERY: "DRIVERQUERY - 현재 장치 드라이버 상태를 표시합니다.",
+                    ECHO: "ECHO [메시지] - 메시지를 화면에 출력합니다.",
+                    EDIT: "EDIT 파일명.txt - 전체 화면 레트로 텍스트 에디터를 열어 편집합니다.",
+                    ENDLOCAL: "ENDLOCAL - 배치 파일의 환경 변경 지역화를 끝냅니다.",
+                    ERASE: "ERASE - 파일을 삭제합니다.",
+                    EXIT: "EXIT - 명령 프롬프트를 종료하거나 실행 중인 게임을 끕니다.",
+                    FC: "FC - 두 파일의 차이점을 비교합니다.",
+                    FIND: "FIND \"문자열\" 파일명 - 파일에서 텍스트 문자열을 찾습니다.",
+                    FINDSTR: "FINDSTR - 파일에서 문자열을 검색합니다.",
+                    FOR: "FOR - 파일 집합의 각 파일에 대해 지정된 명령을 실행합니다.",
+                    FORMAT: "FORMAT - 가상 디스크를 포맷합니다.",
+                    FSUTIL: "FSUTIL - 파일 시스템 관리 유틸리티입니다.",
+                    FTYPE: "FTYPE - 파일 연결 종류를 표시하거나 수정합니다.",
+                    GOTO: "GOTO - 배치 파일에서 레이블이 지정된 줄로 이동합니다.",
+                    GPRESULT: "GPRESULT - 그룹 정책 정보를 표시합니다.",
+                    HELP: "HELP [명령어] - DOS 명령어 도움말을 제공합니다.",
+                    ICACLS: "ICACLS - 파일 권한을 관리합니다.",
+                    IF: "IF - 배치 프로그램에서 조건부 처리를 수행합니다.",
+                    JAVASCRIPT: "JAVASCRIPT 파일명.js (JS) - 업로드된 자바스크립트 파일을 실행합니다.",
+                    LABEL: "LABEL - 디스크의 볼륨 라벨을 작성 또는 변경합니다.",
+                    MD: "MD 경로 - 새 디렉토리를 만듭니다.",
+                    MEM: "MEM - 메모리 및 가상 파일 저장소 상태를 표시합니다.",
+                    MKDIR: "MKDIR 경로 - 새 디렉토리를 만듭니다.",
+                    MKLINK: "MKLINK - 심볼릭 링크를 생성합니다.",
+                    MODE: "MODE - 시스템 장치를 구성합니다.",
+                    MORE: "MORE - 출력을 한 화면씩 나누어 표시합니다.",
+                    MOVE: "MOVE 원본 대상 - 파일을 이동합니다.",
+                    OPENFILES: "OPENFILES - 공유 열린 파일 목록을 표시합니다.",
+                    PATH: "PATH - 실행 파일의 검색 경로를 설정합니다.",
+                    PAUSE: "PAUSE - 배치 파일 처리를 일시 정지합니다.",
+                    POPD: "POPD - PUSHD로 저장된 이전 디렉토리로 이동합니다.",
+                    PRINT: "PRINT - 텍스트 파일을 인쇄 스풀로 보냅니다.",
+                    PROMPT: "PROMPT - 명령어 프롬프트 모양을 변경합니다.",
+                    PUSHD: "PUSHD - 현재 디렉토리를 저장하고 지정된 경로로 이동합니다.",
+                    RD: "RD 경로 - 디렉토리를 제거합니다.",
+                    RECOVER: "RECOVER - 손상된 디스크에서 읽기 가능한 정보를 복구합니다.",
+                    REM: "REM - 주석을 기록합니다.",
+                    REN: "REN 이전이름 새이름 - 파일 이름을 변경합니다.",
+                    RENAME: "RENAME 이전이름 새이름 - 파일 이름을 변경합니다.",
+                    REPLACE: "REPLACE - 파일을 바꿉니다.",
+                    RMDIR: "RMDIR 경로 - 디렉토리를 제거합니다.",
+                    ROBOCOPY: "ROBOCOPY - 고급 파일 및 폴더 복사 유틸리티입니다.",
+                    RUN: "RUN 파일명.exe - DOS 프로그램(.EXE, .COM, .BAT)을 실행합니다.",
+                    SET: "SET [변수=값] - 환경 변수를 표시하거나 설정합니다.",
+                    SETLOCAL: "SETLOCAL - 배치 파일의 환경 변경 지역화를 시작합니다.",
+                    SC: "SC - 서비스 제어 유틸리티입니다.",
+                    SCHTASKS: "SCHTASKS - 예약된 작업을 관리합니다.",
+                    SHIFT: "SHIFT - 배치 파일의 매개변수 위치를 바꿉니다.",
+                    SHUTDOWN: "SHUTDOWN - 시스템을 종료합니다.",
+                    SORT: "SORT - 입력 데이터를 정렬합니다.",
+                    START: "START - 별도의 창에서 프로그램을 실행합니다.",
+                    SUBST: "SUBST - 경로를 드라이브 문자와 연결합니다.",
+                    SYSTEMINFO: "SYSTEMINFO - 시스템 사양 및 환경 정보를 표시합니다.",
+                    TASKLIST: "TASKLIST - 실행 중인 모든 프로세스 목록을 출력합니다.",
+                    TASKKILL: "TASKKILL - 프로세스를 종료합니다.",
+                    TIME: "TIME - 시스템 시간을 표시합니다.",
+                    TITLE: "TITLE - 창 제목을 설정합니다.",
+                    TREE: "TREE - 디렉토리 구조를 그래픽으로 표시합니다.",
+                    TYPE: "TYPE 파일명 - 텍스트 파일의 내용을 출력합니다.",
+                    LOAD: "LOAD A-Z [-v] - 깃허브 폴더(c 제외 a~z)의 파일을 불러옵니다.",
+                    UPLOAD: "UPLOAD [-f] - 파일 또는 폴더 zip 선택창을 엽니다.",
+                    VER: "VER - WEB-DOS 버전을 표시합니다.",
+                    VERIFY: "VERIFY - 파일 기록 검증 여부를 설정합니다.",
+                    VOL: "VOL - 디스크 볼륨 라벨을 표시합니다.",
+                    XCOPY: "XCOPY - 파일 및 디렉토리 트리를 복사합니다.",
+                    WMIC: "WMIC - WMI 가상 콘솔을 시작합니다."
+                },
+                jp: {
+                    ASSOC: "ASSOC - ファイル拡張子の関連付けを表示します。",
+                    ATTRIB: "ATTRIB - ファイル属性を表示または変更します。",
+                    BEEP: "BEEP - レトロPCスピーカーのビープ音を再生します。",
+                    BREAK: "BREAK - 拡張CTRL+Cチェックを設定します。",
+                    BCDEDIT: "BCDEDIT - ブート設定データを管理します。",
+                    CACLS: "CACLS - ファイルのアクセス制御リスト(ACL)を変更します。",
+                    CALL: "CALL - バッチプログラムから別のバッチを呼び出します。",
+                    CD: "CD - 現在のディレクトリを表示または変更します。",
+                    CHCP: "CHCP - アクティブなコードページ番号を設定します。",
+                    CHDIR: "CHDIR - ディレクトリを変更します。",
+                    CHKDSK: "CHKDSK - ディスク状態レポートを表示します。",
+                    CHKNTFS: "CHKNTFS - 起動時のディスクチェックを表示します。",
+                    CLS: "CLS - 画面を消去します。",
+                    CMD: "CMD - Windowsコマンドプロンプトを開始します。",
+                    COLOR: "COLOR [0A|0B|0E] - コンソール文字色を変更します。",
+                    COMP: "COMP - 2つのファイルの内容を比較します。",
+                    COMPACT: "COMPACT - ファイルの圧縮状態を表示/変更します。",
+                    CONFIG: "CONFIG [en|kr|jp|cn] - システム言語を設定します。",
+                    CONVERT: "CONVERT - FATドライブをNTFSに変換します。",
+                    COPY: "COPY コピー元 コピー先 - ファイルをコピーします。",
+                    DATE: "DATE - システム日付を表示します。",
+                    DEL: "DEL ファイル名 - ファイルを削除します。",
+                    DIR: "DIR - ディレクトリ内のファイルとフォルダを表示します。",
+                    DISKPART: "DISKPART - ディスクパーティションのプロパティを構成します。",
+                    DOCTOR: "DOCTOR - js-dosエミュレータの診断を実行します。",
+                    DOSKEY: "DOSKEY - コマンド履歴の再呼び出しやマクロを作成します。",
+                    DRIVERQUERY: "DRIVERQUERY - デバイスドライバの状態を表示します。",
+                    ECHO: "ECHO [テキスト] - メッセージを表示します。",
+                    EDIT: "EDIT ファイル名.txt - テキストエディタを開きます。",
+                    ENDLOCAL: "ENDLOCAL - バッチファイルの環境変更のローカライズを終了します。",
+                    ERASE: "ERASE - ファイルを削除します。",
+                    EXIT: "EXIT - セッションまたはゲームを終了します。",
+                    FC: "FC - 2つのファイルを比較します。",
+                    FIND: "FIND \"文字列\" ファイル名 - 文字列を検索します。",
+                    FINDSTR: "FINDSTR - ファイル内の文字列を検索します。",
+                    FOR: "FOR - ファイルセットの各ファイルに対してコマンドを実行します。",
+                    FORMAT: "FORMAT - 仮想ディスクをフォーマットします。",
+                    FSUTIL: "FSUTIL - ファイルシステムユーティリティです。",
+                    FTYPE: "FTYPE - ファイルの関連付けを表示/変更します。",
+                    GOTO: "GOTO - バッチファイル内のラベルへ移動します。",
+                    GPRESULT: "GPRESULT - グループポリシー情報を表示します。",
+                    HELP: "HELP [コマンド] - コマンドのヘルプを表示します。",
+                    ICACLS: "ICACLS - ファイル権限を管理します。",
+                    IF: "IF - 条件付き処理を実行します。",
+                    JAVASCRIPT: "JAVASCRIPT ファイル名.js (JS) - JavaScriptを実行します。",
+                    LABEL: "LABEL - ボリュームラベルを作成/変更します。",
+                    MD: "MD パス - ディレクトリを作成します。",
+                    MEM: "MEM - メモリと仮想ファイルストレージ状態を表示します。",
+                    MKDIR: "MKDIR パス - ディレクトリを作成します。",
+                    MKLINK: "MKLINK - シンボリックリンクを作成します。",
+                    MODE: "MODE - システムデバイスを構成します。",
+                    MORE: "MORE - 1画面ずつ出力を表示します。",
+                    MOVE: "MOVE 移動元 移動先 - ファイルを移動します。",
+                    OPENFILES: "OPENFILES - 共有ファイルを表示します。",
+                    PATH: "PATH - 実行ファイルの検索パスを設定します。",
+                    PAUSE: "PAUSE - バッチファイルの処理を一時停止します。",
+                    POPD: "POPD - PUSHDで保存したディレクトリに戻ります。",
+                    PRINT: "PRINT - テキストファイルを印刷します。",
+                    PROMPT: "PROMPT - コマンドプロンプトを変更します。",
+                    PUSHD: "PUSHD - 現在のディレクトリを保存して移動します。",
+                    RD: "RD パス - ディレクトリを削除します。",
+                    RECOVER: "RECOVER - 破損したディスクからデータを復元します。",
+                    REM: "REM - バッチファイル内にコメントを記録します。",
+                    REN: "REN 旧名 新名 - ファイル名を変更します。",
+                    RENAME: "RENAME 旧名 新名 - ファイル名を変更します。",
+                    REPLACE: "REPLACE - ファイルを置き換えます。",
+                    RMDIR: "RMDIR パス - ディレクトリを削除します。",
+                    ROBOCOPY: "ROBOCOPY - 高機能ファイルコピーユーティリティです。",
+                    RUN: "RUN ファイル名.exe - DOSプログラムを実行します。",
+                    SET: "SET [変数=値] - 環境変数を表示/設定します。",
+                    SETLOCAL: "SETLOCAL - バッチファイルの環境変更のローカライズを開始します。",
+                    SC: "SC - サービスコントローラユーティリティです。",
+                    SCHTASKS: "SCHTASKS - タスクをスケジュールします。",
+                    SHIFT: "SHIFT - バッチパラメータの位置をシフトします。",
+                    SHUTDOWN: "SHUTDOWN - システムをシャットダウンします。",
+                    SORT: "SORT - 入力データを並べ替えます。",
+                    START: "START - 別のウィンドウでプログラムを開始します。",
+                    SUBST: "SUBST - パスをドライブ文字に関連付けます。",
+                    SYSTEMINFO: "SYSTEMINFO - システム情報を表示します。",
+                    TASKLIST: "TASKLIST - 実行中のプロセス一覧を表示します。",
+                    TASKKILL: "TASKKILL - プロセスを終了します。",
+                    TIME: "TIME - システム時刻を表示します。",
+                    TITLE: "TITLE - ウィンドウタイトルを設定します。",
+                    TREE: "TREE - ディレクトリ構造をグラフィカルに表示します。",
+                    TYPE: "TYPE ファイル名 - テキストファイルの内容を表示します。",
+                    LOAD: "LOAD A-Z [-v] - GitHubフォルダ(cを除くa～z)のファイルを読み込みます。",
+                    UPLOAD: "UPLOAD [-f] - ファイルまたはフォルダZIPをアップロードします。",
+                    VER: "VER - WEB-DOSのバージョンを表示します。",
+                    VERIFY: "VERIFY - ファイル書き込みの検証を設定します。",
+                    VOL: "VOL - ボリュームラベルを表示します。",
+                    XCOPY: "XCOPY - ファイルとディレクトリ構造をコピーします。",
+                    WMIC: "WMIC - WMIコンソールを開始します。"
+                },
+                cn: {
+                    ASSOC: "ASSOC - 显示文件扩展名关联。",
+                    ATTRIB: "ATTRIB - 显示或更改文件属性。",
+                    BEEP: "BEEP - 播放复古 PC 扬声器蜂鸣声。",
+                    BREAK: "BREAK - 设置扩展 CTRL+C 检查。",
+                    BCDEDIT: "BCDEDIT - 设置引导数据库属性。",
+                    CACLS: "CACLS - 显示或修改文件的访问控制列表(ACL)。",
+                    CALL: "CALL - 从一个批处理程序调用另一个批处理程序。",
+                    CD: "CD - 显示当前目录名或改变当前目录。",
+                    CHCP: "CHCP - 显示或设置活动代码页编号。",
+                    CHDIR: "CHDIR - 改变当前目录。",
+                    CHKDSK: "CHKDSK - 检查磁盘并显示状态报告。",
+                    CHKNTFS: "CHKNTFS - 显示启动时的磁盘检查。",
+                    CLS: "CLS - 清除屏幕。",
+                    CMD: "CMD - 打开新的命令提示符窗口。",
+                    COLOR: "COLOR [0A|0B|0E] - 设置控制台前景色。",
+                    COMP: "COMP - 比较两个或两组文件的内容。",
+                    COMPACT: "COMPACT - 显示或改变文件的压缩状态。",
+                    CONFIG: "CONFIG [en|kr|jp|cn] - 配置系统语言。",
+                    CONVERT: "CONVERT - 将 FAT 卷转换为 NTFS。",
+                    COPY: "COPY 源 目的 - 将一份或多份文件复制到另一个位置。",
+                    DATE: "DATE - 显示或设置日期。",
+                    DEL: "DEL 文件名 - 删除一个或多个文件。",
+                    DIR: "DIR - 显示目录中的文件和子文件夹列表。",
+                    DISKPART: "DISKPART - 显示或配置磁盘分区属性。",
+                    DOCTOR: "DOCTOR - 运行 js-dos 模拟器环境诊断。",
+                    DOSKEY: "DOSKEY - 编辑命令行、撤回 Windows 命令并创建宏。",
+                    DRIVERQUERY: "DRIVERQUERY - 显示当前设备驱动程序状态。",
+                    ECHO: "ECHO [文本] - 显示消息。",
+                    EDIT: "EDIT 文件名.txt - 打开全屏复古文本编辑器。",
+                    ENDLOCAL: "ENDLOCAL - 结束批处理文件中环境变更的本地化。",
+                    ERASE: "ERASE - 删除文件。",
+                    EXIT: "EXIT - 退出命令解释程序或关闭游戏。",
+                    FC: "FC - 比较两个文件并显示它们之间的不同。",
+                    FIND: "FIND \"字符串\" 文件名 - 在文件中搜索文本字符串。",
+                    FINDSTR: "FINDSTR - 在文件中搜索字符串。",
+                    FOR: "FOR - 对一组文件中的每个文件运行指定命令。",
+                    FORMAT: "FORMAT - 格式化虚拟磁盘。",
+                    FSUTIL: "FSUTIL - 文件系统实用工具。",
+                    FTYPE: "FTYPE - 显示或修改在文件扩展名关联中使用的文件类型。",
+                    GOTO: "GOTO - 将批处理程序定向到带标签的行。",
+                    GPRESULT: "GPRESULT - 显示组策略信息。",
+                    HELP: "HELP [命令] - 提供 Windows 命令的帮助信息。",
+                    ICACLS: "ICACLS - 显示、修改、备份或还原文件权限。",
+                    IF: "IF - 在批处理程序中执行条件处理。",
+                    JAVASCRIPT: "JAVASCRIPT 文件名.js (JS) - 执行上传的 JavaScript 文件。",
+                    LABEL: "LABEL - 创建、更改或删除磁盘的卷标。",
+                    MD: "MD 路径 - 创建目录。",
+                    MEM: "MEM - 显示内存和虚拟文件存储状态。",
+                    MKDIR: "MKDIR 路径 - 创建目录。",
+                    MKLINK: "MKLINK - 创建符号链接或硬链接。",
+                    MODE: "MODE - 配置系统设备。",
+                    MORE: "MORE - 逐屏显示输出。",
+                    MOVE: "MOVE 源 目的 - 移动文件。",
+                    OPENFILES: "OPENFILES - 显示远程用户打开的共享文件。",
+                    PATH: "PATH - 为可执行文件显示或设置搜索路径。",
+                    PAUSE: "PAUSE - 暂停批处理文件的处理并显示消息。",
+                    POPD: "POPD - 还原 PUSHD 保存的当前目录的旧值。",
+                    PRINT: "PRINT - 打印文本文件。",
+                    PROMPT: "PROMPT - 更改命令提示符。",
+                    PUSHD: "PUSHD - 保存当前目录，然后对其进行更改。",
+                    RD: "RD 路径 - 删除目录。",
+                    RECOVER: "RECOVER - 从损坏的磁盘中恢复可读信息。",
+                    REM: "REM - 在批处理文件中记录注释。",
+                    REN: "REN 旧名 新名 - 重命名文件。",
+                    RENAME: "RENAME 旧名 新名 - 重命名文件。",
+                    REPLACE: "REPLACE - 替换文件。",
+                    RMDIR: "RMDIR 路径 - 删除目录。",
+                    ROBOCOPY: "ROBOCOPY - 高级文件和目录树复制工具。",
+                    RUN: "RUN 文件名.exe - 运行 DOS 程序(.EXE, .COM, .BAT)。",
+                    SET: "SET [变量=值] - 显示、设置或删除环境变量。",
+                    SETLOCAL: "SETLOCAL - 开始批处理文件中环境变更的本地化。",
+                    SC: "SC - 服务控制器实用工具。",
+                    SCHTASKS: "SCHTASKS - 安排命令和程序在计算机上运行。",
+                    SHIFT: "SHIFT - 更改批处理文件中可替换参数的位置。",
+                    SHUTDOWN: "SHUTDOWN - 关机或重启。",
+                    SORT: "SORT - 对输入进行排序。",
+                    START: "START - 启动单独的窗口来运行指定程序。",
+                    SUBST: "SUBST - 将路径与驱动器号关联。",
+                    SYSTEMINFO: "SYSTEMINFO - 显示计算机的特定属性和配置。",
+                    TASKLIST: "TASKLIST - 显示当前正在运行的所有任务。",
+                    TASKKILL: "TASKKILL - 终止正在运行的进程。",
+                    TIME: "TIME - 显示系统时间。",
+                    TITLE: "TITLE - 设置命令提示符窗口的窗口标题。",
+                    TREE: "TREE - 以图形方式显示驱动器或路径的目录结构。",
+                    TYPE: "TYPE 文件名 - 显示文本文件的内容。",
+                    LOAD: "LOAD A-Z [-v] - 从 GitHub 文件夹(除 c 外的 a~z)加载文件。",
+                    UPLOAD: "UPLOAD [-f] - 打开文件或文件夹 zip 上传窗口。",
+                    VER: "VER - 显示 WEB-DOS 版本。",
+                    VERIFY: "VERIFY - 告诉系统是否验证文件已正确写入。",
+                    VOL: "VOL - 显示磁盘卷标和序列号。",
+                    XCOPY: "XCOPY - 复制文件和目录树。",
+                    WMIC: "WMIC - 在交互式命令 shell 中显示 WMI 信息。"
+                }
+            };
+
+            let currentLang = 'en';
+            const tr = k => (i18n[currentLang] && i18n[currentLang][k]) || i18n.en[k] || k;
+            const getHelpDoc = cmd => (helpDocs[currentLang] && helpDocs[currentLang][cmd]) || helpDocs.en[cmd] || (cmd + " - DOS Command.");
+
+            // ===== 명령어 출력 메시지 4개국어 사전 =====
+            const X = {
+                en: {
+                    breakOn: 'BREAK is ON',
+                    bcdedit: 'Boot Configuration Data Store Editor (Simulated)\nIdentifier: {current}\ndevice: partition=C:\npath: \\Windows\\system32\\winload.exe',
+                    calling: 'Calling batch file: ',
+                    codePage: 'Active code page: ',
+                    chkntfs: 'C: is not dirty.',
+                    chkdskFiles: (n, b) => `${n} files taking ${b} bytes.`,
+                    compUsage: 'Usage: COMP file1 file2',
+                    compSize: 'Files are of different sizes.',
+                    compOk: 'Files compare OK',
+                    compErr: 'Compare error at byte offset 0',
+                    compact: 'All files in directory are uncompressed.',
+                    convert: 'Volume C: is already FAT32/VIRTUAL.',
+                    copyUsage: 'Usage: COPY source destination',
+                    date: 'Current date is ',
+                    time: 'Current time is ',
+                    diskpart: 'Microsoft DiskPart version 1.08\nDISK 0 : 32 MB Virtual Web Storage',
+                    doskey: 'DOSKEY buffer initialized.',
+                    drvHead: 'Module Name  Display Name          Driver Type    Link Date',
+                    drvRow: 'jsdos.sys    JS-DOS Emulator Engine Kernel Driver  10/02/2026',
+                    endlocal: 'Environment localization ended.',
+                    exitMsg: 'WEB-DOS session terminated.',
+                    findUsage: 'Usage: FIND "string" filename',
+                    forSim: 'FOR loop execution simulated.',
+                    fsutil: 'FSUTIL virtual filesystem ready.',
+                    goto: 'Jumping to label ',
+                    gpresult: 'Group Policy Info: Web Standalone Mode',
+                    icacls: 'Processed 1 files; Successfully processed 1 files.',
+                    ifEval: 'IF statement evaluated.',
+                    volume: 'Volume in drive C is ',
+                    moveUsage: 'Usage: MOVE source destination',
+                    mklink: 'Symbolic link created successfully.',
+                    mode: 'Status for device CON:\nColumns: 80, Lines: 25',
+                    openfiles: 'No open shared files in virtual environment.',
+                    pause: 'Press any key to continue . . .',
+                    popd: 'Restored directory stack.',
+                    print: n => 'Sending ' + n + ' to virtual spooler...',
+                    printDoc: 'document',
+                    recover: 'Disk recovery completed. 0 bad sectors found.',
+                    renUsage: 'Usage: RENAME oldname newname',
+                    setlocal: 'Environment localization started.',
+                    sc: 'Service Controller: 1 Services Running.',
+                    schtasks: 'Scheduled Tasks: No active tasks.',
+                    shutdown: 'System shutdown simulated.',
+                    subst: 'Drive substitution configured.',
+                    osName: 'OS Name:                   WEB-DOS 1.08 Virtual Shell',
+                    tlHead: 'Image Name                     PID Session Name        Mem Usage',
+                    taskkill: 'Process terminated successfully.',
+                    wmic: 'WMIC Virtual Console initialized.',
+                    curLang: 'Current language: ',
+                    verifyOff: 'VERIFY is off.'
+                },
+                kr: {
+                    breakOn: 'BREAK가 ON 상태입니다',
+                    bcdedit: '부팅 구성 데이터 저장소 편집기 (시뮬레이션)\n식별자: {current}\n장치: partition=C:\n경로: \\Windows\\system32\\winload.exe',
+                    calling: '배치 파일 호출 중: ',
+                    codePage: '활성 코드 페이지: ',
+                    chkntfs: 'C: 드라이브는 손상되지 않았습니다.',
+                    chkdskFiles: (n, b) => `${n}개 파일, ${b} 바이트 사용 중.`,
+                    compUsage: '사용법: COMP 파일1 파일2',
+                    compSize: '파일 크기가 서로 다릅니다.',
+                    compOk: '파일이 동일합니다',
+                    compErr: '바이트 오프셋 0에서 비교 오류',
+                    compact: '디렉토리의 모든 파일이 압축되어 있지 않습니다.',
+                    convert: 'C: 볼륨은 이미 FAT32/가상 형식입니다.',
+                    copyUsage: '사용법: COPY 원본 대상',
+                    date: '현재 날짜: ',
+                    time: '현재 시간: ',
+                    diskpart: 'Microsoft DiskPart 버전 1.08\n디스크 0 : 32 MB 가상 웹 저장소',
+                    doskey: 'DOSKEY 버퍼가 초기화되었습니다.',
+                    drvHead: '모듈 이름    표시 이름                       드라이버 종류  링크 날짜',
+                    drvRow: 'jsdos.sys    JS-DOS 에뮬레이터 엔진 커널 드라이버  10/02/2026',
+                    endlocal: '환경 변경 지역화가 종료되었습니다.',
+                    exitMsg: 'WEB-DOS 세션이 종료되었습니다.',
+                    findUsage: '사용법: FIND "문자열" 파일명',
+                    forSim: 'FOR 반복 실행이 시뮬레이션되었습니다.',
+                    fsutil: 'FSUTIL 가상 파일 시스템이 준비되었습니다.',
+                    goto: '레이블로 이동: ',
+                    gpresult: '그룹 정책 정보: 웹 독립 실행 모드',
+                    icacls: '1개 파일을 처리했습니다. 처리에 성공했습니다.',
+                    ifEval: 'IF 문이 평가되었습니다.',
+                    volume: 'C 드라이브의 볼륨: ',
+                    moveUsage: '사용법: MOVE 원본 대상',
+                    mklink: '심볼릭 링크가 생성되었습니다.',
+                    mode: '장치 CON: 상태\n열: 80, 줄: 25',
+                    openfiles: '가상 환경에 열린 공유 파일이 없습니다.',
+                    pause: '계속하려면 아무 키나 누르십시오 . . .',
+                    popd: '디렉토리 스택이 복원되었습니다.',
+                    print: n => n + ' 파일을 가상 스풀러로 보내는 중...',
+                    printDoc: '문서',
+                    recover: '디스크 복구가 완료되었습니다. 불량 섹터 0개.',
+                    renUsage: '사용법: RENAME 이전이름 새이름',
+                    setlocal: '환경 변경 지역화가 시작되었습니다.',
+                    sc: '서비스 컨트롤러: 1개 서비스 실행 중.',
+                    schtasks: '예약된 작업: 활성 작업 없음.',
+                    shutdown: '시스템 종료가 시뮬레이션되었습니다.',
+                    subst: '드라이브 대체가 구성되었습니다.',
+                    osName: 'OS 이름:                   WEB-DOS 1.08 가상 셸',
+                    tlHead: '이미지 이름                    PID 세션 이름        메모리 사용량',
+                    taskkill: '프로세스가 종료되었습니다.',
+                    wmic: 'WMIC 가상 콘솔이 초기화되었습니다.',
+                    curLang: '현재 언어: ',
+                    verifyOff: 'VERIFY가 꺼져 있습니다.'
+                },
+                jp: {
+                    breakOn: 'BREAK は ON です',
+                    bcdedit: 'ブート構成データ ストア エディター (シミュレーション)\n識別子: {current}\nデバイス: partition=C:\nパス: \\Windows\\system32\\winload.exe',
+                    calling: 'バッチファイルを呼び出し中: ',
+                    codePage: '現在のコードページ: ',
+                    chkntfs: 'C: は破損していません。',
+                    chkdskFiles: (n, b) => `${n} 個のファイル、${b} バイトを使用中。`,
+                    compUsage: '使用方法: COMP ファイル1 ファイル2',
+                    compSize: 'ファイルのサイズが異なります。',
+                    compOk: 'ファイルは同一です',
+                    compErr: 'バイトオフセット 0 で比較エラー',
+                    compact: 'ディレクトリ内のすべてのファイルは圧縮されていません。',
+                    convert: 'ボリューム C: はすでに FAT32/仮想 形式です。',
+                    copyUsage: '使用方法: COPY コピー元 コピー先',
+                    date: '現在の日付: ',
+                    time: '現在の時刻: ',
+                    diskpart: 'Microsoft DiskPart バージョン 1.08\nディスク 0 : 32 MB 仮想Webストレージ',
+                    doskey: 'DOSKEY バッファを初期化しました。',
+                    drvHead: 'モジュール名    表示名                      ドライバーの種類  リンク日',
+                    drvRow: 'jsdos.sys    JS-DOS エミュレーターエンジン カーネルドライバー  10/02/2026',
+                    endlocal: '環境変更のローカライズを終了しました。',
+                    exitMsg: 'WEB-DOS セッションを終了しました。',
+                    findUsage: '使用方法: FIND "文字列" ファイル名',
+                    forSim: 'FOR ループの実行をシミュレートしました。',
+                    fsutil: 'FSUTIL 仮想ファイルシステムの準備ができました。',
+                    goto: 'ラベルへ移動: ',
+                    gpresult: 'グループポリシー情報: Web スタンドアロンモード',
+                    icacls: '1 個のファイルを処理しました。正常に処理されました。',
+                    ifEval: 'IF 文を評価しました。',
+                    volume: 'ドライブ C のボリューム: ',
+                    moveUsage: '使用方法: MOVE 移動元 移動先',
+                    mklink: 'シンボリックリンクを作成しました。',
+                    mode: 'デバイス CON: の状態\n桁数: 80, 行数: 25',
+                    openfiles: '仮想環境に開いている共有ファイルはありません。',
+                    pause: '続行するには何かキーを押してください . . .',
+                    popd: 'ディレクトリスタックを復元しました。',
+                    print: n => n + ' を仮想スプーラーに送信中...',
+                    printDoc: 'ドキュメント',
+                    recover: 'ディスクの回復が完了しました。不良セクターは 0 個です。',
+                    renUsage: '使用方法: RENAME 旧名 新名',
+                    setlocal: '環境変更のローカライズを開始しました。',
+                    sc: 'サービスコントローラー: 1 個のサービスが実行中。',
+                    schtasks: 'スケジュールされたタスク: 有効なタスクはありません。',
+                    shutdown: 'システムのシャットダウンをシミュレートしました。',
+                    subst: 'ドライブの置換を設定しました。',
+                    osName: 'OS 名:                     WEB-DOS 1.08 仮想シェル',
+                    tlHead: 'イメージ名                     PID セッション名     メモリ使用量',
+                    taskkill: 'プロセスを終了しました。',
+                    wmic: 'WMIC 仮想コンソールを初期化しました。',
+                    curLang: '現在の言語: ',
+                    verifyOff: 'VERIFY はオフです。'
+                },
+                cn: {
+                    breakOn: 'BREAK 已开启',
+                    bcdedit: '启动配置数据存储编辑器 (模拟)\n标识符: {current}\n设备: partition=C:\n路径: \\Windows\\system32\\winload.exe',
+                    calling: '正在调用批处理文件: ',
+                    codePage: '活动代码页: ',
+                    chkntfs: 'C: 未损坏。',
+                    chkdskFiles: (n, b) => `${n} 个文件，占用 ${b} 字节。`,
+                    compUsage: '用法: COMP 文件1 文件2',
+                    compSize: '文件大小不同。',
+                    compOk: '文件比较结果相同',
+                    compErr: '在字节偏移 0 处比较出错',
+                    compact: '目录中的所有文件均未压缩。',
+                    convert: '卷 C: 已经是 FAT32/虚拟 格式。',
+                    copyUsage: '用法: COPY 源 目的',
+                    date: '当前日期: ',
+                    time: '当前时间: ',
+                    diskpart: 'Microsoft DiskPart 版本 1.08\n磁盘 0 : 32 MB 虚拟 Web 存储',
+                    doskey: 'DOSKEY 缓冲区已初始化。',
+                    drvHead: '模块名称    显示名称                    驱动程序类型  链接日期',
+                    drvRow: 'jsdos.sys    JS-DOS 模拟器引擎内核驱动程序  10/02/2026',
+                    endlocal: '环境变更的本地化已结束。',
+                    exitMsg: 'WEB-DOS 会话已终止。',
+                    findUsage: '用法: FIND "字符串" 文件名',
+                    forSim: '已模拟 FOR 循环执行。',
+                    fsutil: 'FSUTIL 虚拟文件系统已就绪。',
+                    goto: '跳转到标签: ',
+                    gpresult: '组策略信息: Web 独立模式',
+                    icacls: '已处理 1 个文件；成功处理 1 个文件。',
+                    ifEval: '已计算 IF 语句。',
+                    volume: '驱动器 C 的卷: ',
+                    moveUsage: '用法: MOVE 源 目的',
+                    mklink: '符号链接创建成功。',
+                    mode: '设备 CON: 的状态\n列: 80, 行: 25',
+                    openfiles: '虚拟环境中没有打开的共享文件。',
+                    pause: '请按任意键继续 . . .',
+                    popd: '已还原目录堆栈。',
+                    print: n => '正在将 ' + n + ' 发送到虚拟打印后台处理程序...',
+                    printDoc: '文档',
+                    recover: '磁盘恢复完成。发现 0 个坏扇区。',
+                    renUsage: '用法: RENAME 旧名 新名',
+                    setlocal: '环境变更的本地化已开始。',
+                    sc: '服务控制器: 1 个服务正在运行。',
+                    schtasks: '计划任务: 没有活动任务。',
+                    shutdown: '已模拟系统关机。',
+                    subst: '驱动器替换已配置。',
+                    osName: 'OS 名称:                   WEB-DOS 1.08 虚拟 Shell',
+                    tlHead: '映像名称                       PID 会话名           内存使用',
+                    taskkill: '进程已成功终止。',
+                    wmic: 'WMIC 虚拟控制台已初始化。',
+                    curLang: '当前语言: ',
+                    verifyOff: 'VERIFY 已关闭。'
+                }
+            };
+            const tx = (k, ...a) => {
+                const s = (X[currentLang] && X[currentLang][k] !== undefined) ? X[currentLang][k] : X.en[k];
+                return typeof s === 'function' ? s(...a) : s;
+            };
+
+            function updateUIForLanguage() {
+                try {
+                    $('editor-header').textContent = tr('editorTitle');
+                    $('editor-hint').textContent = tr('editorHint');
+                    $('x').textContent = tr('exitBtn');
+                } catch(e) {}
+            }
+
+            (function detectBrowserLanguage() {
+                try {
+                    const navLang = (navigator.language || navigator.userLanguage || '').toLowerCase();
+                    if (navLang.startsWith('ko')) {
+                        currentLang = 'kr';
+                    } else if (navLang.startsWith('ja')) {
+                        currentLang = 'jp';
+                    } else if (navLang.startsWith('zh') || navLang.startsWith('cn') || navLang.startsWith('tw') || navLang.startsWith('hk')) {
+                        currentLang = 'cn';
+                    } else {
+                        currentLang = 'en';
+                    }
+                } catch (e) {
+                    currentLang = 'en';
+                }
+                updateUIForLanguage();
+            })();
+
+            const $=id=>document.getElementById(id), T=$('t'), O=$('o'), I=$('in');
+            const files=new Map(), dirs=new Set(['']);
+            const envVars=new Map([['PATH', 'C:\\DOS;C:\\WINDOWS'], ['PROMPT', '$P$G'], ['COMSPEC', 'C:\\COMMAND.COM']]);
+            let cwd=[], hist=[], hi=0, player=null, editingFile=null, volumeLabel="WEB-DOS_DISK";
+
+            const out=(s='',c='')=>{
+                if(!s && s!== '') return;
+                try {
+                    const d=document.createElement('div');
+                    if(c) d.className=c;
+                    d.textContent=s;
+                    O.appendChild(d);
+                    T.scrollTop=T.scrollHeight;
+                } catch(e) {}
+            };
+
+            const prompt=()=> { try { $('pr').textContent='C:\\'+cwd.join('\\').toUpperCase()+'>'; } catch(e){} };
+            const resolve=s=>{s=String(s).replace(/^c:/i,'\\');let p=/^[\\/]/.test(s)?[]:[...cwd];for(const x of s.split(/[\\/]/)){if(!x||x==='.')continue;x==='..'?p.pop():p.push(x)}return p};
+            const lc=p=>p.join('/').toLowerCase();
+            const addDir=p=>{let a=p.split('/');for(let i=1;i<=a.length;i++)dirs.add(a.slice(0,i).join('/').toLowerCase())};
+            const addFile=(p,d)=>{const parts=p.split('/');parts.pop();if(parts.length)addDir(parts.join('/'));files.set(p.toLowerCase(),{p,d})};
+            const par=k=>k.includes('/')?k.slice(0,k.lastIndexOf('/')):'';
+            const base=p=>p.slice(p.lastIndexOf('/')+1);
+            const fmt=n=>n.toLocaleString('en-US');
+
+            function playBeep(freq=800, duration=100) {
+                try {
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'square';
+                    osc.frequency.value = freq;
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start();
+                    setTimeout(() => { try { osc.stop(); ctx.close(); } catch(e){} }, duration);
+                } catch(e) {}
+            }
+
+            const cmds={
+                help(a){ 
+                    if(a[0]) {
+                        const targetCmd = a[0].toUpperCase();
+                        const doc = helpDocs.en[targetCmd] ? getHelpDoc(targetCmd) : null;
+                        if(doc) {
+                            out(doc, 'cyan');
+                        } else {
+                            out(tr('noHelpFor') + `"${targetCmd}".`, 'err');
+                        }
+                        return;
+                    }
+                    out(tr('helpHeader'), 'hi');
+                    out('');
+                    const sortedCmds = Object.keys(helpDocs.en).sort();
+                    for(const cmd of sortedCmds) {
+                        const doc = getHelpDoc(cmd);
+                        const idx = doc.indexOf(' - ');
+                        if (idx !== -1) {
+                            const left = doc.slice(0, idx);
+                            const right = doc.slice(idx + 3);
+                            out(left.padEnd(22) + right);
+                        } else {
+                            out(doc);
+                        }
+                    }
+                    out('');
+                },
+                config(a){
+                    if(!a[0]) return out(tx('curLang') + currentLang + ' (english/en, korean/kr, japanese/jp, chinese/cn)', 'hi');
+                    const arg = a[0].toLowerCase();
+                    if(['en', 'english'].includes(arg)) { currentLang = 'en'; }
+                    else if(['kr', 'ko', 'korean'].includes(arg)) { currentLang = 'kr'; }
+                    else if(['jp', 'ja', 'japanese'].includes(arg)) { currentLang = 'jp'; }
+                    else if(['cn', 'zh', 'chinese'].includes(arg)) { currentLang = 'cn'; }
+                    else { return out(tr('invalidLang'), 'err'); }
+                    
+                    updateUIForLanguage();
+                    out(tr('langChanged'), 'ok');
+                    prompt();
+                },
+                assoc(a){ out(getHelpDoc('ASSOC')); },
+                attrib(a){ out(getHelpDoc('ATTRIB')); },
+                break(a){ out(tx('breakOn')); },
+                bcdedit(){ out(tx('bcdedit')); },
+                cacls(a){ out(getHelpDoc('CACLS')); },
+                call(a){ if(a[0]) out(tx('calling') + a[0]); else out(tr('reqParam'), 'err'); },
+                cd(a){
+                    a=a.filter(x=>!/^\/d$/i.test(x));
+                    if(!a[0]) return out('C:\\' + cwd.join('\\').toUpperCase());
+                    if(/^c:?[\\/]*$/i.test(a[0]) && !dirs.has('c')){ cwd=[]; return; }
+                    let p=resolve(a[0]);
+                    // a~z(c 제외) 한 글자 폴더는 현재 위치와 상관없이 루트에서 찾음 (cd d → cd a)
+                    const dl=a[0].match(/^([abd-z]):?$/i);
+                    if(dl && !dirs.has(lc(p))) p=[dl[1].toLowerCase()];
+                    if(p.length===1 && /^[abd-z]$/i.test(p[0])) addDir(p[0]);
+                    if(!dirs.has(lc(p))) return out(tr('invDir'), 'err');
+                    cwd=p.map((x,i)=>{const f=[...dirs].find(d=>d===lc(p.slice(0,i+1)));const o=[...files.values()].map(v=>v.p.split('/')).find(s=>s[i]&&s.slice(0,i+1).join('/').toLowerCase()===f);return o?o[i]:x});
+                },
+                chdir(a){ cmds.cd(a); },
+                chcp(a){ out(tx('codePage') + (a[0] || '437')); },
+                chkdsk(){
+                    out(tr('chkdskType'));
+                    out(tr('chkdskSerial'));
+                    out(tr('chkdskTotal'));
+                    out(tx('chkdskFiles', files.size, Array.from(files.values()).reduce((a,b)=>a+b.d.length,0)));
+                    out(tr('chkdskAvail'));
+                },
+                chkntfs(){ out(tx('chkntfs')); },
+                cls(){ O.innerHTML=''; },
+                cmd(){ out('Microsoft Windows DOS Shell [Version 1.08.437]'); },
+                color(a){
+                    const code = a[0] || '';
+                    if(code === '0a' || code === '2') { T.style.color = '#5f5'; out(tr('colorGreen'), 'ok'); }
+                    else if(code === '0b' || code === '3') { T.style.color = '#5ff'; out(tr('colorCyan'), 'cyan'); }
+                    else if(code === '0e' || code === '6') { T.style.color = '#ff5'; out(tr('colorYellow'), 'yellow'); }
+                    else { T.style.color = '#aaa'; out(tr('colorReset')); }
+                },
+                comp(a){
+                    if(!a[0] || !a[1]) return out(tx('compUsage'), 'err');
+                    const f1 = files.get(lc(resolve(a[0]))), f2 = files.get(lc(resolve(a[1])));
+                    if(!f1 || !f2) return out(tr('fileNotFound'), 'err');
+                    if(f1.d.length !== f2.d.length) return out(tx('compSize'));
+                    let same = true;
+                    for(let i=0; i<f1.d.length; i++){ if(f1.d[i] !== f2.d[i]){ same=false; break; } }
+                    out(same ? tx('compOk') : tx('compErr'));
+                },
+                compact(a){ out(tx('compact')); },
+                convert(){ out(tx('convert')); },
+                copy(a){
+                    if(!a[0] || !a[1]) return out(tx('copyUsage'), 'err');
+                    const srcKey = lc(resolve(a[0]));
+                    const src = files.get(srcKey);
+                    if(!src) return out(tr('fileNotFound'), 'err');
+                    const destPath = resolve(a[1]).join('/');
+                    addFile(destPath, new Uint8Array(src.d));
+                    out(tr('fileCopied'), 'ok');
+                },
+                date(){ out(tx('date') + new Date().toLocaleDateString()); },
+                del(a){
+                    if(!a[0]) return out(tr('reqParam'), 'err');
+                    const f=files.get(lc(resolve(a[0])));
+                    if(!f) return out(tr('fileNotFound'), 'err');
+                    files.delete(lc(resolve(a[0])));
+                    out(tr('fileDeleted'), 'ok');
+                },
+                erase(a){ cmds.del(a); },
+                
+                dir(a){
+                    const targetPath = a[0] ? resolve(a[0]) : cwd;
+                    const k = lc(targetPath);
+                    if(!dirs.has(k) && targetPath.length > 0) return out(tr('fileNotFound'), 'err');
+
+                    out(' ' + tr('dirOf') + targetPath.join('\\').toUpperCase());
+                    out('');
+
+                    let totalFiles = 0;
+                    let totalDirs = 0;
+                    let totalSize = 0;
+
+                    for (const d of dirs) {
+                        if (d && par(d) === k) {
+                            totalDirs++;
+                            const folderName = [...files.values()]
+                                .map(v => v.p.split('/'))
+                                .map(s => s[targetPath.length])
+                                .find(x => x && (k ? k + '/' : '') + x.toLowerCase() === d) || base(d);
+                            out(folderName.toUpperCase().padEnd(20) + '<DIR>');
+                        }
+                    }
+
+                    for (const [fk, v] of files) {
+                        if (par(fk) === k) {
+                            totalFiles++;
+                            totalSize += v.d.length;
+                            out(base(v.p).toUpperCase().padEnd(20) + fmt(v.d.length).padStart(12));
+                        }
+                    }
+
+                    const nestedFiles = [...files.values()].filter(v => {
+                        const fileKey = v.p.toLowerCase();
+                        return fileKey.startsWith(k ? k + '/' : '') && par(fileKey) !== k;
+                    });
+
+                    if (nestedFiles.length > 0) {
+                        out('');
+                        out(tr('subfolderHeader'), 'cyan');
+                        for (const v of nestedFiles) {
+                            totalFiles++;
+                            totalSize += v.d.length;
+                            const relPath = k ? v.p.slice(k.length + 1) : v.p;
+                            out(relPath.replace(/\//g, '\\').toUpperCase().padEnd(32) + fmt(v.d.length).padStart(12), 'hi');
+                        }
+                    }
+
+                    out('');
+                    out(`  ${totalFiles}${tr('filesBytes')}${fmt(totalSize)}${tr('bytesStr')}`);
+                    out(`  ${totalDirs}${tr('dirsStr')}`);
+                    out(`  32,768,000${tr('freeSpace')}`);
+                },
+                diskpart(){ out(tx('diskpart')); },
+                doskey(){ out(tx('doskey')); },
+                driverquery(){ out(tx('drvHead') + '\n' + '='.repeat(59)); out(tx('drvRow')); },
+                echo(a){ out(a.join(' ')); },
+                endlocal(){ out(tx('endlocal')); },
+                exit(){ stopGame(); out(tx('exitMsg')); },
+                fc(a){ cmds.comp(a); },
+                find(a){
+                    if(!a[0] || !a[1]) return out(tx('findUsage'), 'err');
+                    const str = a[0].replace(/^"|"$/g, '');
+                    const f = files.get(lc(resolve(a[1])));
+                    if(!f) return out(tr('fileNotFound'), 'err');
+                    const txt = new TextDecoder('latin1').decode(f.d);
+                    const lines = txt.split('\n').filter(l => l.includes(str));
+                    out(`---------- ${a[1].toUpperCase()}`);
+                    lines.forEach(l => out(l));
+                },
+                findstr(a){ cmds.find(a); },
+                for(a){ out(tx('forSim')); },
+                format(){
+                    files.clear(); dirs.clear(); dirs.add(''); cwd=[];
+                    out(tr('fmtDone'), 'ok');
+                },
+                fsutil(){ out(tx('fsutil')); },
+                ftype(a){ out('txtfile=%SystemRoot%\\system32\\NOTEPAD.EXE %1'); },
+                goto(a){ out(tx('goto') + (a[0]||'END')); },
+                gpresult(){ out(tx('gpresult')); },
+                icacls(a){ out(tx('icacls')); },
+                if(a){ out(tx('ifEval')); },
+                javascript(a){
+                    if(!a[0]) return out(tr('jsUsage'), 'err');
+                    const p = resolve(a[0]);
+                    const key = lc(p);
+                    let f = files.get(key);
+                    if(!f && !key.endsWith('.js')) {
+                        f = files.get(key + '.js');
+                    }
+                    if(!f) return out(tr('fileNotFound'), 'err');
+
+                    out(tr('jsRunning') + f.p.toUpperCase(), 'cyan');
+
+                    const code = new TextDecoder('utf-8').decode(f.d);
+
+                    const customConsole = {
+                        log: (...args) => out(args.map(x => typeof x === 'object' ? JSON.stringify(x) : x).join(' ')),
+                        warn: (...args) => out('[WARN] ' + args.map(x => typeof x === 'object' ? JSON.stringify(x) : x).join(' '), 'yellow'),
+                        error: (...args) => out('[ERROR] ' + args.map(x => typeof x === 'object' ? JSON.stringify(x) : x).join(' '), 'err'),
+                        info: (...args) => out(args.map(x => typeof x === 'object' ? JSON.stringify(x) : x).join(' '), 'cyan')
+                    };
+
+                    const FS = {
+                        read: (filename) => {
+                            const targetKey = lc(resolve(filename));
+                            const targetFile = files.get(targetKey);
+                            if(!targetFile) return null;
+                            return new TextDecoder('utf-8').decode(targetFile.d);
+                        },
+                        exists: (filename) => files.has(lc(resolve(filename)))
+                    };
+
+                    try {
+                        const runScript = new Function('console', 'FS', 'out', 'playBeep', code);
+                        runScript(customConsole, FS, out, playBeep);
+                        out(tr('jsSuccess'), 'ok');
+                    } catch(e) {
+                        out(tr('jsError') + (e.message || e), 'err');
+                    }
+                },
+                js(a){ cmds.javascript(a); },
+                label(a){ if(a[0]) volumeLabel = a[0]; out(tx('volume') + volumeLabel); },
+                md(a){ cmds.mkdir(a); },
+                mkdir(a){
+                    if(!a[0]) return out(tr('reqParam'), 'err');
+                    const p=resolve(a[0]); addDir(p.join('/')); out('');
+                },
+                mklink(a){ out(tx('mklink')); },
+                mode(){ out(tx('mode')); },
+                more(a){ cmds.type(a); },
+                move(a){
+                    if(!a[0] || !a[1]) return out(tx('moveUsage'), 'err');
+                    cmds.copy(a);
+                    cmds.del([a[0]]);
+                },
+                openfiles(){ out(tx('openfiles')); },
+                path(a){
+                    if(a[0]) envVars.set('PATH', a[0]);
+                    out('PATH=' + envVars.get('PATH'));
+                },
+                pause(){ out(tx('pause')); },
+                popd(){ out(tx('popd')); },
+                print(a){ out(tx('print', a[0] || tx('printDoc'))); },
+                prompt(a){ if(a[0]) envVars.set('PROMPT', a[0]); prompt(); },
+                pushd(a){ if(a[0]) cmds.cd(a); },
+                rd(a){ cmds.rmdir(a); },
+                rmdir(a){
+                    if(!a[0]) return out(tr('reqParam'), 'err');
+                    const k = lc(resolve(a[0]));
+                    if(dirs.has(k)) { dirs.delete(k); out(tr('dirRemoved'), 'ok'); }
+                    else out(tr('invDir'), 'err');
+                },
+                recover(){ out(tx('recover')); },
+                rem(){},
+                ren(a){ cmds.rename(a); },
+                rename(a){
+                    if(!a[0] || !a[1]) return out(tx('renUsage'), 'err');
+                    const srcKey = lc(resolve(a[0]));
+                    const src = files.get(srcKey);
+                    if(!src) return out(tr('fileNotFound'), 'err');
+                    files.delete(srcKey);
+                    const destPath = resolve(a[1]).join('/');
+                    addFile(destPath, src.d);
+                    out(tr('fileRenamed'), 'ok');
+                },
+                replace(a){ cmds.copy(a); },
+                robocopy(a){ cmds.copy(a); },
+                set(a){
+                    if(!a[0]) {
+                        for(const [k,v] of envVars) out(`${k}=${v}`);
+                        return;
+                    }
+                    const [k,v] = a.join(' ').split('=');
+                    if(k) envVars.set(k.toUpperCase(), v||'');
+                },
+                setlocal(){ out(tx('setlocal')); },
+                sc(){ out(tx('sc')); },
+                schtasks(){ out(tx('schtasks')); },
+                shift(){},
+                shutdown(){ out(tx('shutdown')); },
+                sort(a){ cmds.type(a); },
+                start(a){ if(a[0]) cmds.run(a); },
+                subst(a){ out(tx('subst')); },
+                systeminfo(){
+                    out(tr('sysInfoHost'));
+                    out(tx('osName'));
+                    out(tr('sysInfoOS'));
+                    out(tr('sysInfoType'));
+                    out(tr('sysInfoMem'));
+                },
+                tasklist(){
+                    out(tx('tlHead'));
+                    out('========================= ======== ================ ============');
+                    out('COMMAND.COM                   1001 Console                   2,048 K');
+                    out('JSDOS_KERNEL.EXE              2004 Console                  16,384 K');
+                },
+                taskkill(){ out(tx('taskkill')); },
+                time(){ out(tx('time') + new Date().toLocaleTimeString()); },
+                title(a){ if(a[0]) document.title = a.join(' '); },
+                tree(){
+                    const walk=(k,pre)=>{
+                        const ch=[...dirs].filter(d=>d&&par(d)===k), fs=[...files.entries()].filter(([f])=>par(f)===k);
+                        [...ch.map(d=>[base(d),d]),...fs.map(([f,v])=>[base(v.p),null])].forEach(([n,d])=>{out(pre+n.toUpperCase());if(d)walk(d,pre+'   ')});
+                    };
+                    walk(lc(cwd),'');
+                },
+                type(a){
+                    const f=files.get(lc(resolve(a[0]||'')));
+                    if(!f) return out(tr('fileNotFound'), 'err');
+                    out(new TextDecoder('latin1').decode(f.d));
+                },
+                ver(){ out(tr('verInfo'), 'hi'); },
+                verify(){ out(tx('verifyOff')); },
+                vol(){ out(tx('volume') + volumeLabel); out(tr('chkdskSerial')); },
+                wmic(){ out(tx('wmic')); },
+                xcopy(a){ cmds.copy(a); },
+                doctor(){
+                    out('Host: ' + location.protocol + '//' + location.hostname + (inClaude ? '  ' + tr('docClaude') : ''));
+                    out(tr('workerLoad') + (typeof Worker) + '   ' + tr('jszipLoad') + typeof JSZip + '   Dos: ' + (typeof window.Dos !== 'undefined' ? typeof window.Dos : 'undefined'));
+                    ensureDos().then(s=>out(tr('dosLoad') + s.n + ')', 'ok')).catch(e=>out(e.message||'Error', 'err'));
+                },
+                mem(){
+                    out(tr('memBase'), 'cyan');
+                    out(tr('memXMS'), 'cyan');
+                    out(tr('memFiles') + files.size, 'yellow');
+                },
+                beep(){
+                    playBeep(1000, 150);
+                    out(tr('beepMsg'));
+                },
+                edit(a){
+                    if(!a[0]) return out(tr('editUsage'), 'err');
+                    const p = resolve(a[0]);
+                    const key = lc(p);
+                    let f = files.get(key);
+                    let text = '';
+                    if(f) {
+                        text = new TextDecoder('latin1').decode(f.d);
+                    }
+                    editingFile = { path: p.join('/'), key: key };
+                    $('editor-filename').textContent = a[0].toUpperCase();
+                    $('editor-textarea').value = text;
+                    updateUIForLanguage();
+                    $('editor').style.display = 'flex';
+                    $('editor-textarea').focus();
+                },
+                upload(a){
+                    if(a[0]==='-f'||a[0]==='/f') {
+                        $('fd').click();
+                    } else {
+                        $('fz').click();
+                    }
+                    out(tr('uploadPrompt'));
+                },
+                run(a){
+                    const arg=a.join(' ').replace(/^["']|["']$/g,'').trim();
+                    if(!arg) return out(tr('runUsage'), 'err');
+                    const hasExt=/\.[a-z0-9]{1,4}$/i.test(arg), exts=hasExt?['']:['.exe','.com','.bat'];
+                    let f=null; const p=resolve(arg);
+                    for(const e of exts){ f=files.get(lc(p)+e); if(f) break; }
+                    if(!f){
+                        const nm=arg.split(/[\\/]/).pop().toLowerCase();
+                        const hits=[...files.values()].filter(v=>exts.some(e=>base(v.p).toLowerCase()===nm+e));
+                        const cur=lc(cwd), near=hits.filter(v=>par(v.p.toLowerCase()).startsWith(cur));
+                        const pick=near.length?near:hits;
+                        if(pick.length>1){ out(tr('multiFileMatch'), 'err'); pick.forEach(v=>out('  RUN '+v.p.replace(/\//g,'\\'))); return; }
+                        f=pick[0];
+                    }
+                    if(!f) return out(arg.toUpperCase()+': '+tr('fileNotFoundErr'), 'err');
+                    if(!/\.(exe|com|bat|img|ima|vfd|iso|cue)$/i.test(f.p)) return out(tr('invFormat'), 'err');
+                    out(tr('runningTo')+f.p.replace(/\//g,'\\').toUpperCase());
+                    launch(f.p);
+                }
+            };
+
+            const inClaude=/claudeusercontent\.com$/.test(location.hostname);
+            const loadTag=(u,css)=>new Promise((ok,no)=>{
+                const e=document.createElement(css?'link':'script');
+                if(css) e.rel='stylesheet';
+                e[css?'href':'src']=u;
+                const timer=setTimeout(()=>no(new Error(u+i18n.en.timeout)),20000);
+                e.onload=()=>{clearTimeout(timer);ok()};
+                e.onerror=()=>{clearTimeout(timer);e.remove();no(new Error(u+i18n.en.loadFail))};
+                document.head.appendChild(e);
+            });
+
+            const SRC=[
+                {n:'v8.js-dos.com',js:'https://v8.js-dos.com/latest/js-dos.js',css:'https://v8.js-dos.com/latest/js-dos.css',pre:''},
+                {n:'jsDelivr',js:'https://cdn.jsdelivr.net/npm/js-dos@8/dist/js-dos.js',css:'https://cdn.jsdelivr.net/npm/js-dos@8/dist/js-dos.css',pre:'https://cdn.jsdelivr.net/npm/emulators@8/dist/'}
+            ];
+            let dosP=null, dosSrc=null;
+
+            function ensureDos(){
+                if(dosSrc && typeof window.Dos === 'function') return Promise.resolve(dosSrc);
+                return dosP || (dosP = (async()=>{
+                    const errs=[];
+                    for(const s of SRC){
+                        try{
+                            await loadTag(s.css,true).catch(()=>{});
+                            await loadTag(s.js);
+                            if(typeof window.Dos !== 'function'){
+                                try {
+                                    const m = await import(s.js);
+                                    const D = m.Dos || m.default;
+                                    if(typeof D === 'function') window.Dos = D;
+                                } catch(e) {}
+                            }
+                            if(typeof window.Dos !== 'function') throw new Error(s.n + ': ' + tr('dosNotFound'));
+                            if(s.pre && window.emulators) window.emulators.pathPrefix = s.pre;
+                            dosSrc = s; return s;
+                        }catch(e){errs.push(e.message)}
+                    }
+                    dosP=null; throw new Error(errs.join('\n') || tr('dosNotFound'));
+                })());
+            }
+
+            // ===== 키 매핑: B 폴더(Street Fighter2)는 방향키 → I J K L 로 변환해서 게임에 전달 =====
+            let keyRemap=null;
+            const IJKL={ArrowUp:['i','KeyI',73],ArrowLeft:['j','KeyJ',74],ArrowDown:['k','KeyK',75],ArrowRight:['l','KeyL',76]};
+            const remapKey=e=>{
+                if(!keyRemap || e.isTrusted===false) return;
+                const m=keyRemap[e.key]; if(!m) return;
+                if($('game').style.display!=='block') return;
+                e.preventDefault(); e.stopImmediatePropagation();
+                const ev=new KeyboardEvent(e.type,{key:m[0],code:m[1],bubbles:true,cancelable:true,repeat:e.repeat,shiftKey:e.shiftKey,ctrlKey:e.ctrlKey,altKey:e.altKey,metaKey:e.metaKey});
+                for(const k of ['keyCode','which','charCode']) Object.defineProperty(ev,k,{get:()=>k==='charCode'?0:m[2]});
+                const ae=document.activeElement, host=$('dos');
+                const target=(ae && ae!==document.body && host.contains(ae)) ? ae : (host.querySelector('canvas')||host);
+                target.dispatchEvent(ev);
+            };
+            window.addEventListener('keydown',remapKey,true);
+            window.addEventListener('keyup',remapKey,true);
+
+            async function launch(path){
+                if(inClaude) out(tr('claudeWarning'), 'err');
+                out(tr('dosPreparing'), 'ok');
+                try{ await ensureDos(); }catch(e){
+                    out(e.message||'Error','err');
+                    out(tr('checkInternet'),'err');
+                    return;
+                }
+                const top=path.includes('/')?path.split('/')[0]:null, tl=top&&top.toLowerCase()+'/';
+                keyRemap = (top && top.toLowerCase()==='b') ? IJKL : null;
+                const sel=[...files.values()].filter(v=>top?v.p.toLowerCase().startsWith(tl):true);
+                const rel=p=>top?p.slice(top.length+1):p, inner=rel(path);
+                const dirp=inner.includes('/')?inner.slice(0,inner.lastIndexOf('/')).replace(/\//g,'\\'):'';
+                const mb=sel.reduce((n,v)=>n+v.d.length,0)/1048576;
+                out(`${sel.length}${tr('filesLoaded')} (${mb.toFixed(1)} MB)${top?' — C:\\ = '+top.toUpperCase():''}`);
+                const isImg=/\.(img|ima|vfd|iso|cue)$/i.test(inner);
+                const imgSize=(files.get(path.toLowerCase())||{d:[]}).d.length;
+                const dosPath=base(inner);
+                const runLine = !isImg ? dosPath
+                    : (/\.(iso|cue)$/i.test(inner) || imgSize>2949120)
+                        ? 'imgmount d "'+dosPath+'" -t iso\nd:'
+                        : 'boot "'+dosPath+'"';
+                const conf=`[sdl]
+autolock=false
+[dosbox]
+captures=capture
+[cpu]
+core=auto
+cputype=pentium_slow
+cycles=fixed 30000
+cycleup=1000
+cycledown=1000
+[mixer]
+nosound=false
+rate=44100
+blocksize=2048
+prebuffer=80
+[midi]
+mpu401=intelligent
+mididevice=default
+[sblaster]
+sbtype=sb16
+sbbase=220
+irq=7
+dma=1
+hdma=5
+sbmix=true
+oplmode=auto
+oplemu=default
+oplrate=44100
+[gus]
+gus=false
+[speaker]
+pcspeaker=true
+pcrate=44100
+tandy=off
+disney=off
+[autoexec]
+@echo off
+mount c .
+c:
+${dirp?'cd '+dirp+'\n':''}${runLine}
+`;
+                const host=document.createElement('div'); host.style.cssText='position:absolute;inset:0';
+                $('dos').innerHTML=''; $('dos').appendChild(host); $('game').style.display='block';
+                try{
+                    player = await window.Dos(host,{dosboxConf:conf,initFs:sel.map(v=>({path:rel(v.p),contents:v.d.slice()})),autoStart:true,workerThread:!inClaude,...(dosSrc.pre?{pathPrefix:dosSrc.pre,pathSuffix:''}:{})});
+                }catch(e){$('game').style.display='none';out('Error: '+(e&&e.message||e),'err')}
+            }
+
+            let stopping=false;
+            async function stopGame(){
+                if(stopping || $('game').style.display!=='block') return;
+                stopping=true;
+                try{
+                    try{ if(player && typeof player.stop === 'function') await player.stop(); }catch(e){}
+                    $('dos').innerHTML=''; player=null; keyRemap=null; $('game').style.display='none';
+                    out(tr('gameClosed')); I.focus();
+                }finally{ stopping=false; }
+            }
+            $('x').onclick=stopGame;
+
+            async function ingest(list){
+                let n = 0; 
+                const cp = cwd.join('/'), pre = cp ? cp + '/' : '';
+                
+                const preparedItems = [];
+                for (const f of list) {
+                    if (/\.(zip|jsdos)$/i.test(f.name) && !f.webkitRelativePath) {
+                        preparedItems.push({ type: 'archive', file: f });
+                    } else {
+                        const relPath = (f.webkitRelativePath || f.name).replace(/\\/g, '/');
+                        preparedItems.push({ type: 'file', file: f, path: relPath });
+                    }
+                }
+
+                const filePaths = preparedItems.filter(i => i.type === 'file').map(i => i.path);
+                const firstSlashIndexes = filePaths.map(p => p.indexOf('/'));
+                const hasSubfolders = filePaths.length > 0 && firstSlashIndexes.every(idx => idx > 0);
+                
+                let rootFolderToStrip = null;
+                if (hasSubfolders) {
+                    const topFolders = new Set(filePaths.map(p => p.split('/')[0]));
+                    if (topFolders.size === 1) {
+                        rootFolderToStrip = [...topFolders][0];
+                    }
+                }
+
+                if (rootFolderToStrip) {
+                    out(tr('rootStripped'), 'yellow');
+                }
+
+                const uploadedNames = [];
+
+                for (const item of preparedItems) {
+                    if (item.type === 'archive') {
+                        const f = item.file;
+                        const root = f.name.replace(/\.[^.]+$/,'');
+                        try {
+                            const z = await JSZip.loadAsync(f);
+                            const ents = Object.values(z.files).filter(e => !e.dir && !/^__MACOSX\/|(^|\/)\.DS_Store$/.test(e.name));
+                            const tops = new Set(ents.map(e => e.name.split('/')[0]));
+                            const strip = tops.size === 1 && ents.every(e => e.name.includes('/'));
+                            for (const e of ents) {
+                                let nm = e.name;
+                                if (strip) nm = nm.split('/').slice(1).join('/');
+                                const targetPath = pre + (strip ? '' : root + '/') + nm;
+                                addFile(targetPath, await e.async('uint8array'));
+                                uploadedNames.push(targetPath);
+                                n++;
+                            }
+                            out(`  ${f.name} → ${root}\\` + tr('zipUnpack'), 'ok');
+                        } catch(e) {
+                            out(f.name + ': ' + tr('zipFail'), 'err');
+                        }
+                    } else {
+                        let finalPath = item.path;
+                        if (rootFolderToStrip && finalPath.startsWith(rootFolderToStrip + '/')) {
+                            finalPath = finalPath.slice(rootFolderToStrip.length + 1);
+                        }
+                        const targetPath = pre + finalPath;
+                        addFile(targetPath, new Uint8Array(await item.file.arrayBuffer()));
+                        uploadedNames.push(targetPath);
+                        n++;
+                    }
+                }
+
+                out(`${n}` + tr('uploadComplete'), 'ok');
+
+                if (uploadedNames.length > 0) {
+                    out('');
+                    out(tr('uploadedHeader'), 'cyan');
+                    uploadedNames.forEach(fn => out('  ' + fn.replace(/\//g, '\\').toUpperCase(), 'ok'));
+                    out('');
+                }
+            }
+
+
+            // ================= LOAD : GitHub 폴더(a~z, c 제외)에서 게임 불러오기 =================
+            const LM = {
+                en: {
+                    usage: 'Usage: LOAD A [-v]   (A-Z except C)',
+                    reserved: 'Access is denied.',
+                    local: 'The device is not ready.',
+                    loading: d => 'Loading ' + d.toUpperCase() + '\\ ...',
+                    notFound: d => 'The system cannot find the path specified.',
+                    ghErr: e => 'Network error (' + e + ').',
+                    progress: (i, n) => '  downloading ' + i + '/' + n,
+                    done: (n, mb, d) => n + ' file(s) loaded (' + mb + ' MB) → ' + d.toUpperCase() + '\\',
+                    noExe: 'Bad command or file name.',
+                    pick: 'Multiple programs found. Use RUN with one of these:'
+                },
+                kr: {
+                    usage: '사용법: LOAD A [-v]   (C를 제외한 A~Z)',
+                    reserved: '액세스가 거부되었습니다.',
+                    local: '장치가 준비되지 않았습니다.',
+                    loading: d => d.toUpperCase() + '\\ 불러오는 중...',
+                    notFound: d => '지정된 경로를 찾을 수 없습니다.',
+                    ghErr: e => '네트워크 오류 (' + e + ').',
+                    progress: (i, n) => '  다운로드 중 ' + i + '/' + n,
+                    done: (n, mb, d) => n + '개 파일 로드 완료 (' + mb + ' MB) → ' + d.toUpperCase() + '\\',
+                    noExe: '잘못된 명령 또는 파일 이름입니다.',
+                    pick: '프로그램이 여러 개입니다. 아래 중 하나를 RUN 으로 실행하세요:'
+                },
+                jp: {
+                    usage: '使い方: LOAD A [-v]   (Cを除くA～Z)',
+                    reserved: 'アクセスが拒否されました。',
+                    local: 'デバイスの準備ができていません。',
+                    loading: d => d.toUpperCase() + '\\ を読み込み中...',
+                    notFound: d => '指定されたパスが見つかりません。',
+                    ghErr: e => 'ネットワークエラー (' + e + ')。',
+                    progress: (i, n) => '  ダウンロード中 ' + i + '/' + n,
+                    done: (n, mb, d) => n + '個のファイルを読み込みました (' + mb + ' MB) → ' + d.toUpperCase() + '\\',
+                    noExe: 'コマンドまたはファイル名が正しくありません。',
+                    pick: 'プログラムが複数あります。次のいずれかを RUN で実行してください:'
+                },
+                cn: {
+                    usage: '用法: LOAD A [-v]   (除 C 外的 A~Z)',
+                    reserved: '拒绝访问。',
+                    local: '设备未准备好。',
+                    loading: d => '正在加载 ' + d.toUpperCase() + '\\ ...',
+                    notFound: d => '系统找不到指定的路径。',
+                    ghErr: e => '网络错误 (' + e + ')。',
+                    progress: (i, n) => '  下载中 ' + i + '/' + n,
+                    done: (n, mb, d) => '已加载 ' + n + ' 个文件 (' + mb + ' MB) → ' + d.toUpperCase() + '\\',
+                    noExe: '命令或文件名错误。',
+                    pick: '找到多个程序。请用 RUN 运行以下之一:'
+                }
+            };
+            const lm = (k, ...a) => { const s = (LM[currentLang] && LM[currentLang][k]) || LM.en[k]; return typeof s === 'function' ? s(...a) : s; };
+            const encPath = p => p.split('/').map(encodeURIComponent).join('/');
+            const skipName = n => /(^|\/)(\.gitkeep|\.gitignore|\.DS_Store|Thumbs\.db)$/i.test(n) || /^__MACOSX\//.test(n);
+            const isZip = n => /\.(zip|jsdos)$/i.test(n);
+            // 커스텀 도메인/로컬에서 GitHub 자동 탐색을 쓰려면 'owner/repo' 를 적으세요 (github.io 에서는 비워도 됨)
+            const GH_REPO = 'ktxsubway-bit/WebDos';
+            const GH_BRANCHES = ['main', 'master', 'HEAD'];
+            setTimeout(() => { try { Object.keys(KNOWN).forEach(k => addDir(k)); } catch (e) {} }, 0);
+            // 폴더별 알려진 ZIP 이름 (여기에 추가하면 API 없이도 바로 찾음)
+            const KNOWN = { a: ['w3d.zip'], b: ['Street Fighter2.zip'], d: ['심시티2000.zip'] };
+            let loading = false, ghErr = null, verbose = false;
+            const dbg = m => { if (verbose) out('  ' + m, 'yellow'); };
+            const pageBase = () => {
+                let pth = location.pathname;
+                if (!pth.endsWith('/') && !/\.[a-z0-9]+$/i.test(pth.split('/').pop())) pth += '/';
+                return location.origin + pth.replace(/[^\/]*$/, '');
+            };
+            const U = x => pageBase() + x;
+
+            const getter = (dir, rel) => async () => {
+                const tries = [U(dir + '/' + encPath(rel))];
+                if (GH_REPO) for (const b of GH_BRANCHES.filter(x => x !== 'HEAD')) {
+                    tries.push('https://raw.githubusercontent.com/' + GH_REPO + '/' + b + '/' + encPath(dir + '/' + rel));
+                    tries.push('https://cdn.jsdelivr.net/gh/' + GH_REPO + '@' + b + '/' + encPath(dir + '/' + rel));
+                }
+                let last = 0;
+                for (const u of tries) {
+                    try {
+                        const r = await fetch(u);
+                        dbg('GET ' + u + ' → ' + r.status);
+                        if (r.ok) return new Uint8Array(await r.arrayBuffer());
+                        last = r.status;
+                    } catch (e) { dbg('GET ' + u + ' → ' + (e.message || e)); }
+                }
+                throw new Error(rel + ' ' + last);
+            };
+
+            // 폴더 최상위의 zip/jsdos 는 풀어서 내용물로 교체
+            async function expandZips(list) {
+                const res = [];
+                for (const it of list) {
+                    if (!it.path.includes('/') && isZip(it.path)) {
+                        try {
+                            const z = await JSZip.loadAsync(await it.get());
+                            const ents = Object.values(z.files).filter(e => !e.dir && !skipName(e.name));
+                            const tops = new Set(ents.map(e => e.name.split('/')[0]));
+                            const strip = tops.size === 1 && ents.every(e => e.name.includes('/'));
+                            dbg('unzip ' + it.path + ' (' + ents.length + ' files)');
+                            for (const e of ents) res.push({ path: strip ? e.name.split('/').slice(1).join('/') : e.name, get: () => e.async('uint8array') });
+                            continue;
+                        } catch (e) { dbg('unzip failed: ' + it.path + ' ' + (e.message || e)); continue; }
+                    }
+                    res.push(it);
+                }
+                return res;
+            }
+
+            // 1) <폴더>/files.json
+            async function srcManifest(dir) {
+                try {
+                    const r = await fetch(U(dir + '/files.json'), { cache: 'no-cache' });
+                    dbg('GET ' + dir + '/files.json → ' + r.status);
+                    if (!r.ok) return null;
+                    const j = await r.json();
+                    const arr = (Array.isArray(j) ? j : (j.files || [])).filter(x => typeof x === 'string' && !skipName(x));
+                    return arr.length ? arr.map(x => ({ path: x, get: getter(dir, x) })) : null;
+                } catch (e) { return null; }
+            }
+
+            // 2) 흔한 이름의 zip (game.zip / a.zip ...)
+            async function srcZipNames(dir, L) {
+                for (const nm of [...new Set((KNOWN[L] || []).flatMap(n => [n, n.normalize('NFC'), n.normalize('NFD')])), 'game.zip', 'game.jsdos', L + '.zip', L.toUpperCase() + '.zip', L + '.jsdos']) {
+                    try {
+                        const r = await fetch(U(dir + '/' + encPath(nm)), { cache: 'no-cache' });
+                        dbg('GET ' + dir + '/' + nm + ' → ' + r.status);
+                        if (r.ok) return [{ path: nm, get: getter(dir, nm) }];
+                        if (GH_REPO && (KNOWN[L] || []).includes(nm)) {
+                            const g = getter(dir, nm);
+                            try { const data = await g(); return [{ path: nm, get: async () => data }]; } catch (e) {}
+                        }
+                    } catch (e) {}
+                }
+                return null;
+            }
+
+            // 3) 서버가 폴더 목록(디렉터리 인덱스)을 제공하는 경우 (로컬 서버 등)
+            async function srcIndex(dir) {
+                try {
+                    const r = await fetch(U(dir + '/'), { cache: 'no-cache' });
+                    dbg('GET ' + dir + '/ → ' + r.status);
+                    if (!r.ok) return null;
+                    const html = await r.text();
+                    const names = [...html.matchAll(/href="([^"?#]+)"/gi)].map(m => decodeURIComponent(m[1]))
+                        .filter(h => !h.startsWith('/') && !h.startsWith('..') && !/^[a-z]+:/i.test(h) && !h.endsWith('/') && !skipName(h));
+                    return names.length ? names.map(x => ({ path: x, get: getter(dir, x) })) : null;
+                } catch (e) { return null; }
+            }
+
+            // 4) GitHub API 로 폴더 자동 탐색 (zip 이름이 뭐든 상관없음)
+            async function srcGithub(letter) {
+                const h = location.hostname, segs = location.pathname.split('/').filter(Boolean);
+                const isFile = x => /\.[a-z0-9]+$/i.test(x);
+                const cands = [];
+                if (GH_REPO) {
+                    const [o, rp] = GH_REPO.split('/');
+                    cands.push({ owner: o, repo: rp, rest: [] });
+                } else if (/\.github\.io$/i.test(h)) {
+                    const o = h.split('.')[0];
+                    if (segs.length && !isFile(segs[0])) cands.push({ owner: o, repo: segs[0], rest: segs.slice(1) });
+                    cands.push({ owner: o, repo: h, rest: segs });
+                }
+                for (const c of cands) {
+                    const rest = c.rest.slice();
+                    if (rest.length && isFile(rest[rest.length - 1])) rest.pop();
+                    const prefix = rest.length ? rest.join('/') + '/' : '';
+                    try {
+                        let r = null;
+                        for (const ref of GH_BRANCHES) {
+                            r = await fetch('https://api.github.com/repos/' + c.owner + '/' + c.repo + '/git/trees/' + ref + '?recursive=1');
+                            dbg('API ' + c.owner + '/' + c.repo + '@' + ref + ' → ' + r.status);
+                            if (r.ok) break;
+                        }
+                        if (!r || !r.ok) { ghErr = r && r.status; continue; }
+                        const j = await r.json();
+                        const want = (prefix + letter + '/').toLowerCase();
+                        const hits = (j.tree || []).filter(t => t.type === 'blob' && t.path.toLowerCase().startsWith(want) && !skipName(t.path));
+                        dbg('folder match: ' + hits.length + ' file(s)');
+                        if (!hits.length) continue;
+                        const dir = hits[0].path.slice(prefix.length).split('/')[0];
+                        return { dir, list: hits.map(t => { const rel = t.path.slice(prefix.length + dir.length + 1); return { path: rel, get: getter(dir, rel) }; }) };
+                    } catch (e) { ghErr = e.message || e; dbg('API error: ' + ghErr); }
+                }
+                return null;
+            }
+
+            async function srcJsd(letter) {
+                if (!GH_REPO) return null;
+                for (const b of GH_BRANCHES.filter(x => x !== 'HEAD')) {
+                    for (const u of ['https://data.jsdelivr.com/v1/packages/gh/' + GH_REPO + '@' + b + '?structure=flat',
+                                     'https://data.jsdelivr.com/v1/package/gh/' + GH_REPO + '@' + b + '/flat']) {
+                        try {
+                            const r = await fetch(u);
+                            dbg('LIST ' + u.split('/')[5] + '@' + b + ' → ' + r.status);
+                            if (!r.ok) continue;
+                            const j = await r.json();
+                            const names = (j.files || []).map(f => String(f.name || f).replace(/^\//, '')).filter(x => !skipName(x));
+                            const want = letter + '/';
+                            const hits = names.filter(x => x.toLowerCase().startsWith(want));
+                            dbg('folder match: ' + hits.length + ' file(s)');
+                            if (!hits.length) continue;
+                            const dir = hits[0].split('/')[0];
+                            return { dir, list: hits.map(x => { const rel = x.slice(dir.length + 1); return { path: rel, get: getter(dir, rel) }; }) };
+                        } catch (e) { dbg('LIST error: ' + (e.message || e)); }
+                    }
+                }
+                return null;
+            }
+
+            cmds.load = async function (a) {
+                verbose = a.some(x => /^[-\/]v$/i.test(x));
+                let L = (a.find(x => !/^[-\/]/.test(x)) || '').replace(/[:\\\/]+$/, '').toLowerCase();
+                if (!L && cwd.length && /^[a-z]$/i.test(cwd[0])) L = cwd[0].toLowerCase();
+                if (!L || !/^[a-z]$/.test(L)) return out(lm('usage'), 'err');
+                if (L === 'c') return out(lm('reserved'), 'err');
+                if (location.protocol === 'file:') return out(lm('local'), 'err');
+                if (loading) return;
+                loading = true; ghErr = null;
+                try {
+                    out(lm('loading', L), 'cyan');
+                    dbg('base: ' + pageBase());
+                    let found = null;
+                    for (const d of [L, L.toUpperCase()]) {            // 깃허브는 대소문자 구분 → 둘 다 시도
+                        for (const src of [() => srcManifest(d), () => srcZipNames(d, L), () => srcIndex(d)]) {
+                            let list = await src();
+                            if (list) { list = await expandZips(list); if (list.length) { found = { dir: d, list }; break; } }
+                        }
+                        if (found) break;
+                    }
+                    if (!found) {
+                        const g = (await srcGithub(L)) || (await srcJsd(L));
+                        if (g) { const list = await expandZips(g.list); if (list.length) found = { dir: g.dir, list }; }
+                    }
+                    if (!found) {
+                        if (ghErr) out(lm('ghErr', ghErr), 'err');
+                        return out(lm('notFound', L), 'err');
+                    }
+
+                    for (const k of [...files.keys()]) if (k.startsWith(L + '/')) files.delete(k);
+
+                    const list = found.list, total = list.length;
+                    let idx = 0, done = 0, bytes = 0;
+                    out('');
+                    const bar = O.lastChild;
+                    const worker = async () => {
+                        while (idx < total) {
+                            const it = list[idx++];
+                            const data = await it.get();
+                            addFile(L + '/' + it.path, data);
+                            bytes += data.length; done++;
+                            if (bar) bar.textContent = lm('progress', done, total);
+                        }
+                    };
+                    await Promise.all(Array.from({ length: Math.min(6, total) }, worker));
+                    if (bar) bar.remove();
+
+                    out(total + tr('uploadComplete'), 'ok');
+                    out('');
+                    out(tr('uploadedHeader'), 'cyan');
+                    list.forEach(it => out('  ' + (L + '/' + it.path).replace(/\//g, '\\').toUpperCase(), 'ok'));
+                    out('');
+                } catch (e) {
+                    out('Error: ' + (e && e.message || e), 'err');
+                } finally { loading = false; }
+            };
+            // =================================================================================
+
+            $('fz').onchange=e=>{ingest([...e.target.files]);e.target.value=''};
+            $('fd').onchange=e=>{ingest([...e.target.files]);e.target.value=''};
+
+            T.ondragover=e=>{e.preventDefault();T.classList.add('drag')};
+            T.ondragleave=()=>T.classList.remove('drag');
+            T.ondrop=async e=>{
+                e.preventDefault(); T.classList.remove('drag');
+                const all=[];
+                const walk=async(en,path)=>{
+                    if(en.isFile) await new Promise(r=>en.file(f=>{Object.defineProperty(f,'webkitRelativePath',{value:path+f.name});all.push(f);r()}));
+                    else{const rd=en.createReader();let b;do{b=await new Promise(r=>rd.readEntries(r));for(const c of b)await walk(c,path+en.name+'\/')}while(b.length)}
+                };
+                for(const it of e.dataTransfer.items){
+                    const en=it.webkitGetAsEntry?.();
+                    if(en?.isDirectory) await walk(en,'');
+                    else if(en) await new Promise(r=>en.file(f=>{all.push(f);r()}))
+                }
+                ingest(all);
+            };
+
+            I.onkeydown=e=>{
+                if(e.key==='Enter'){
+                    const l=I.value.trim();
+                    out($('pr').textContent+I.value);
+                    I.value='';
+                    if(l){
+                        hist.push(l); hi=hist.length;
+                        const [c,...a]=l.split(/\s+/);
+                        if(/^[a-z]:$/i.test(c) && !a.length){ cmds.cd([c[0].toLowerCase()==='c' ? 'c:' : '\\'+c[0]]); prompt(); T.scrollTop=T.scrollHeight; return; }
+                        const fn=cmds[c.toLowerCase()];
+                        fn?fn(a):out("'"+c+"'"+tr('notCommand'),'err');
+                    }
+                    prompt(); T.scrollTop=T.scrollHeight;
+                }else if(e.key==='ArrowUp'){
+                    if(hi>0) I.value=hist[--hi];
+                    e.preventDefault();
+                }else if(e.key==='ArrowDown'){
+                    I.value=hi<hist.length-1?hist[++hi]:(hi=hist.length,'');
+                }else if(e.key==='Tab'){
+                    e.preventDefault();
+                    const val = I.value.trim().toLowerCase();
+                    const cmdNames = Object.keys(cmds);
+                    const match = cmdNames.find(c => c.startsWith(val));
+                    if(match) I.value = match.toUpperCase() + ' ';
+                }
+            };
+
+            window.addEventListener('keydown', async e => {
+                if($('editor').style.display === 'flex') {
+                    if(e.key === 'Escape') {
+                        $('editor').style.display = 'none';
+                        editingFile = null;
+                        I.focus();
+                        e.preventDefault();
+                    } else if((e.ctrlKey || e.metaKey) && e.key === 's') {
+                        const content = new TextEncoder().encode($('editor-textarea').value);
+                        files.set(editingFile.key, { p: editingFile.path, d: content });
+                        $('editor').style.display = 'none';
+                        out(tr('editorSaved') + editingFile.path, 'ok');
+                        editingFile = null;
+                        I.focus();
+                        e.preventDefault();
+                    }
+                } else if(e.key==='End' && $('game').style.display==='block') {
+                    e.preventDefault(); e.stopPropagation();
+                    await stopGame();
+                }
+            }, true);
+
+            window.addEventListener('error', e => {
+                if($('game').style.display === 'block') {
+                    out('[WARN] ' + (e.message || 'Script warning'), 'err');
+                }
+            });
+
+            window.addEventListener('unhandledrejection', e => {
+                if($('game').style.display === 'block') {
+                    out('[WARN] ' + (e.reason && e.reason.message || e.reason), 'err');
+                }
+            });
+
+            ensureDos().catch(()=>{});
+            T.onclick=()=>{if(!getSelection().toString() && $('editor').style.display !== 'flex')I.focus()};
+
+            updateUIForLanguage();
+            out(tr('intro1'),'hi');
+            out(tr('intro2'));
+            out('');
+            prompt();
+        })();
+    </script>
+</body>
+</html>
